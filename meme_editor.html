@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>OZ SPACE - V2V 영상 생성</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- React & ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  
+  <!-- Babel -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    /* 모바일 네이티브 스크롤 숨김 및 스냅 */
+    .scrollbar-hide::-webkit-scrollbar { display: none; }
+    .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    
+    body {
+      background-color: #000;
+      color: #fff;
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior-y: none;
+    }
+
+    /* 비디오 오브젝트 핏 유지를 위한 유틸 */
+    video { object-fit: cover; }
+  </style>
+</head>
+<body class="font-sans antialiased text-white">
+  <div id="root" class="w-full max-w-md mx-auto h-[100dvh] bg-[#09090b] relative overflow-hidden flex flex-col shadow-2xl"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    const DUMMY_IMG = "images/dummy.jpg";
+    const RESULT_IMG = "images/result.jpg"; 
+    const SOURCE_VIDEO = "video/source_test.mp4"; // 하위 폴더의 원본 영상 지정
+
+    // --- Lucide 아이콘 래퍼 ---
+    const IconWrapper = ({ name, size = 24, className = '', fill = 'none' }) => {
+      const containerRef = useRef(null);
+      useEffect(() => {
+        if (containerRef.current) {
+          containerRef.current.innerHTML = `<i data-lucide="${name}"></i>`;
+          lucide.createIcons({ root: containerRef.current });
+          const svg = containerRef.current.querySelector('svg');
+          if (svg) {
+             svg.style.width = typeof size === 'number' ? `${size}px` : size;
+             svg.style.height = typeof size === 'number' ? `${size}px` : size;
+             if (className) svg.setAttribute('class', `lucide lucide-${name} ${className}`);
+             if (fill === 'currentColor') svg.classList.add('fill-current');
+          }
+        }
+      }, [name, size, className, fill]);
+      return <span ref={containerRef} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}></span>;
+    };
+
+    const Play = (p) => <IconWrapper name="play" {...p} />;
+    const Sparkles = (p) => <IconWrapper name="sparkles" {...p} />;
+    const ChevronLeft = (p) => <IconWrapper name="chevron-left" {...p} />;
+    const ChevronDown = (p) => <IconWrapper name="chevron-down" {...p} />;
+    const ChevronUp = (p) => <IconWrapper name="chevron-up" {...p} />;
+    const Loader2 = (p) => <IconWrapper name="loader-2" {...p} />;
+    const Wand2 = (p) => <IconWrapper name="wand-2" {...p} />;
+    const X = (p) => <IconWrapper name="x" {...p} />;
+    const User = (p) => <IconWrapper name="user" {...p} />;
+    const Image = (p) => <IconWrapper name="image" {...p} />;
+
+    // --- 핵심 모듈: 영상 생성 에디터 뷰 ---
+    const EditorModule = ({ onBack, onComplete }) => {
+      // V2V 전용 상태
+      const [promptText, setPromptText] = useState('');
+      const [isPromptOpen, setIsPromptOpen] = useState(false); // 프롬프트 접힘 상태 (디폴트: false)
+      const [uploadedFile, setUploadedFile] = useState(null); 
+      const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
+      
+      const [phase, setPhase] = useState('input');
+      const [optimizedPrompt, setOptimizedPrompt] = useState('');
+
+      // 캐릭터 이미지 업로드 핸들러
+      const handleFileChange = (e) => {
+        if (e.target.files && e.target.files.length > 0) {
+          const file = e.target.files[0];
+          setUploadedFile(file);
+          
+          // 미리보기 URL 생성
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            setImagePreviewUrl(event.target.result);
+          };
+          reader.readAsDataURL(file);
+        }
+      };
+
+      // 생성 시작
+      const handleStartGeneration = () => {
+        if (!uploadedFile) return; // 이미지가 없으면 막기
+
+        setPhase('analyzing');
+        
+        setTimeout(() => {
+          let finalPrompt = `[V2V 생성] 모션 원본 복사 + 캐릭터(${uploadedFile.name}) 반영`;
+          if (promptText.trim()) {
+            finalPrompt += ` | 추가 프롬프트: ${promptText}`;
+          }
+          
+          setOptimizedPrompt(finalPrompt);
+          setPhase('generating');
+          
+          setTimeout(() => {
+            setPhase('result');
+          }, 3000);
+        }, 1500);
+      };
+
+      const handleExport = () => {
+        setPhase('saving'); 
+        setTimeout(() => {
+          const generatedData = { prompt: optimizedPrompt, file: uploadedFile, type: 'V2V' };
+          onComplete(generatedData);
+        }, 800);
+      };
+
+      return (
+        <div className="flex-1 w-full h-full bg-[#09090b] flex flex-col relative animate-in fade-in duration-300">
+          
+          {/* 에디터 헤더 */}
+          <div className="flex items-center justify-between px-4 py-3 bg-[#09090b] border-b border-white/10 shrink-0 z-20">
+            <button onClick={onBack} className="p-2 -ml-2 text-zinc-400 hover:text-white transition-colors"><ChevronLeft size={28}/></button>
+            <div className="flex flex-col items-center">
+              <span className="font-bold text-sm">{phase === 'result' ? '영상 완성' : '모션 따라하기 (V2V)'}</span>
+            </div>
+            <button 
+              onClick={handleExport}
+              disabled={phase !== 'result'}
+              className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${phase === 'result' ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/30 active:scale-95' : 'bg-zinc-800 text-zinc-600'}`}
+            >
+              게시하기
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto scrollbar-hide relative flex flex-col p-4">
+            
+            {/* ==========================================
+                STEP 1: 입력 화면 (V2V 모드)
+                ========================================== */}
+            {phase === 'input' && (
+              <div className="space-y-4 animate-in slide-in-from-bottom-4 flex-1 flex flex-col pb-6">
+                
+                {/* 1. 상단 소스 영역 (모션 영상 & 캐릭터 이미지) */}
+                <div className="grid grid-cols-2 gap-3 h-64 shrink-0">
+                  
+                  {/* 왼쪽: 모션 라이브러리 (원본 영상) */}
+                  <div className="relative rounded-xl overflow-hidden bg-[#18181b] border border-white/5 flex flex-col group">
+                     {/* 영상 요소 (자동재생, 반복) */}
+                     <video 
+                        src={SOURCE_VIDEO}
+                        autoPlay loop muted playsInline
+                        className="absolute inset-0 w-full h-full"
+                        onError={(e) => { 
+                          // 영상 파일이 없을 경우 대비 플레이스홀더
+                          e.target.style.display = 'none';
+                          e.target.nextElementSibling.style.display = 'flex';
+                        }}
+                     ></video>
+                     {/* 영상 로드 실패시 보여질 플레이스홀더 */}
+                     <div className="absolute inset-0 bg-zinc-800 hidden flex-col items-center justify-center text-zinc-500">
+                        <Play size={32} className="mb-2 opacity-50" />
+                        <span className="text-xs">원본 영상</span>
+                     </div>
+                     
+                     {/* 상단 닫기(X) 장식 */}
+                     <button className="absolute top-2 right-2 w-7 h-7 bg-black/40 hover:bg-black/60 backdrop-blur-md rounded-full flex items-center justify-center transition-colors text-zinc-300">
+                        <X size={14} />
+                     </button>
+                     
+                     {/* 하단 뱃지 */}
+                     <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-md text-xs font-medium px-2.5 py-1 rounded-md text-white/90">
+                        모션 라이브러리
+                     </div>
+                  </div>
+
+                  {/* 오른쪽: 캐릭터 이미지 업로드 영역 */}
+                  <label className={`relative rounded-xl overflow-hidden border transition-colors flex flex-col items-center justify-center cursor-pointer ${imagePreviewUrl ? 'border-white/20' : 'bg-[#18181b] border-white/5 hover:bg-zinc-800/80'}`}>
+                     <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+                     
+                     {imagePreviewUrl ? (
+                       // 이미지가 업로드된 상태
+                       <div className="absolute inset-0 w-full h-full group">
+                         <img src={imagePreviewUrl} className="w-full h-full object-cover" alt="캐릭터" />
+                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                            <span className="text-white text-xs font-bold bg-black/60 px-3 py-1.5 rounded-full backdrop-blur-sm">사진 변경</span>
+                         </div>
+                       </div>
+                     ) : (
+                       // 이미지가 없는 초기 상태
+                       <div className="flex flex-col items-center justify-center h-full px-2 text-center">
+                         <div className="flex items-center justify-center mb-3">
+                            <div className="relative w-12 h-12 bg-zinc-700 rounded-lg -rotate-6 border-2 border-zinc-900 shadow-md flex items-center justify-center overflow-hidden z-10">
+                              <User size={24} className="text-zinc-400" />
+                            </div>
+                            <div className="absolute w-12 h-12 bg-indigo-900/50 rounded-lg rotate-12 border-2 border-zinc-900 shadow-md ml-6 flex items-center justify-center overflow-hidden">
+                              <Image size={24} className="text-indigo-300/60" />
+                            </div>
+                         </div>
+                         <p className="text-[13px] font-bold text-white mb-2 tracking-tight">
+                           인물 또는 캐릭터 이미지 <span className="text-red-500">*</span>
+                         </p>
+                         <p className="text-[11px] text-zinc-500 leading-snug">
+                           모션 영상과 유사한 구도의<br/>사진을 올려주세요.
+                         </p>
+                       </div>
+                     )}
+                  </label>
+                </div>
+
+                {/* 2. 프롬프트 입력 영역 (아코디언 방식) */}
+                <div className="bg-[#18181b] border border-white/5 rounded-xl overflow-hidden shrink-0">
+                  <button 
+                    onClick={() => setIsPromptOpen(!isPromptOpen)}
+                    className="w-full px-4 py-4 flex items-center justify-between text-left focus:outline-none bg-transparent"
+                  >
+                    <span className="text-sm font-bold text-white">지시사항</span>
+                    {isPromptOpen ? <ChevronUp size={20} className="text-zinc-500" /> : <ChevronDown size={20} className="text-zinc-500" />}
+                  </button>
+                  
+                  {isPromptOpen && (
+                    <div className="px-4 pb-4 animate-in slide-in-from-top-2">
+                      <p className="text-[13px] text-zinc-400 mb-2">영상에 추가하고 싶은 내용을 적어주세요.</p>
+                      <textarea 
+                        value={promptText}
+                        onChange={(e)=>setPromptText(e.target.value)}
+                        placeholder="예: 뒷배경을 화려한 네온사인 도시로 바꿔줘"
+                        className="w-full bg-[#09090b] border border-white/10 rounded-lg p-3 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors resize-none h-24 placeholder:text-zinc-700"
+                      ></textarea>
+                      <button className="mt-3 flex items-center gap-1.5 text-zinc-400 hover:text-white transition-colors text-xs font-medium">
+                         <Wand2 size={14} />
+                         지시사항 자동완성
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* 남은 공간 밀어내기 용도 */}
+                <div className="flex-1"></div>
+
+                {/* 3. 생성 버튼 영역 */}
+                <div className="pt-2 shrink-0">
+                  <button 
+                    onClick={handleStartGeneration}
+                    disabled={!uploadedFile}
+                    className={`w-full py-4 rounded-xl font-bold text-[15px] transition-all flex items-center justify-center gap-2 ${
+                      uploadedFile 
+                        ? 'bg-white text-black hover:bg-zinc-200 active:scale-[0.98] shadow-lg' 
+                        : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                    }`}
+                  >
+                    영상 생성하기
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ==========================================
+                STEP 2: 무지성 에디터 (결과 및 바이브 적용)
+                ========================================== */}
+            {phase === 'result' && (
+              <div className="absolute inset-0 flex flex-col animate-in zoom-in-95 duration-500 bg-[#09090b]">
+                {/* 풀스크린 영상 프리뷰 */}
+                <div className="relative w-full h-full bg-black overflow-hidden flex-1 flex flex-col justify-end shadow-[inset_0_0_100px_rgba(0,0,0,0.8)]">
+                  <img src={RESULT_IMG} onError={(e) => { e.target.src = DUMMY_IMG; }} alt="생성된 영상 썸네일" className="absolute inset-0 w-full h-full object-cover opacity-90" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent pointer-events-none"></div>
+                  
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                     <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center shadow-2xl">
+                        <Play size={28} fill="white" className="ml-1" />
+                     </div>
+                  </div>
+
+                  <div className="relative z-10 px-5 mb-8 pointer-events-none">
+                    <div className="inline-flex bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10">
+                       <p className="text-[10px] font-medium text-zinc-300 line-clamp-2">
+                         <span className="text-indigo-400 font-bold">V2V 생성 정보: </span>
+                         {optimizedPrompt}
+                       </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {/* 공통 로딩 오버레이 */}
+          {(phase === 'analyzing' || phase === 'generating' || phase === 'saving') && (
+            <div className="absolute inset-0 bg-black/95 z-[60] flex flex-col items-center justify-center animate-in fade-in">
+               <Loader2 size={64} className="text-indigo-500 animate-spin mb-6" />
+               <h2 className="text-xl font-black mb-3 text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">
+                 {phase === 'analyzing' ? '모션 데이터 분석 중...' : phase === 'generating' ? '캐릭터 합성 중! 🎬' : '보관함에 저장 중... 📥'}
+               </h2>
+               <p className="text-sm text-zinc-400 text-center leading-relaxed">
+                 {phase === 'analyzing' 
+                    ? '원본 영상의 움직임을 추출하여\n업로드한 캐릭터에 매핑할 준비를 합니다.' 
+                    : phase === 'generating'
+                    ? 'AI가 캐릭터의 외형을 유지하며\n자연스러운 움직임을 렌더링하고 있습니다.'
+                    : '완성된 영상을 내 작업함으로\n안전하게 옮기고 있습니다.'}
+               </p>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    // --- 최상위 컨테이너 ---
+    const App = () => {
+      const handleCloseModule = () => {
+        alert("모듈 종료: 부모 앱의 이전 화면으로 돌아갑니다.");
+      };
+
+      const handleCompleteModule = (data) => {
+        alert(`게시 완료!\n생성 타입: ${data.type}\n상세: ${data.prompt}\n부모 앱의 '보관함(내 작업함)'으로 라우팅됩니다.`);
+      };
+
+      return (
+        <div className="w-full h-full">
+          <EditorModule onBack={handleCloseModule} onComplete={handleCompleteModule} />
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
