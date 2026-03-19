@@ -156,8 +156,8 @@
             e.stopPropagation(); // 배경 클릭 이벤트 방지
             triggerAnim(id, action);
             
-            // '따라하기' 버튼을 눌렀고, url이 존재하는 경우 모달 띄우기
-            if (action === 'repeat' && url) {
+            // '따라하기' 또는 '플레이' 버튼을 눌렀고, url이 존재하는 경우 모달 띄우기
+            if ((action === 'repeat' || action === 'game') && url) {
                 // 버튼 눌림 애니메이션을 잠깐 보여준 뒤 모달 띄우기
                 setTimeout(() => {
                     openIframe(url);
