@@ -231,7 +231,7 @@
 
                     {video.isGame && (
                         <button 
-                        onClick={(e) => handleAction(e, video.id, 'game')}
+                        onClick={(e) => handleAction(e, video.id, 'game', video.iframeUrl)}
                         className={`flex flex-col items-center gap-1 transition-transform duration-200 ${clickedButtons[`${video.id}-game`] ? 'scale-125' : 'hover:scale-110 active:scale-95'}`}
                         >
                         <div className="p-2 bg-blue-500 rounded-full animate-pulse shadow-[0_0_15px_rgba(59,130,246,0.5)]">
