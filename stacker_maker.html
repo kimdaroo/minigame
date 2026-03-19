@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>스택 타워 - 메이커 룸</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;700&display=swap');
+
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #050510;
+            color: white;
+            user-select: none;
+            -webkit-user-select: none;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+        }
+
+        .game-bg {
+            background-color: #1a0b2e;
+            background-image: radial-gradient(circle at center, #2b1055 0%, #050510 100%);
+        }
+
+        .title-font {
+            font-family: 'Black Han Sans', sans-serif;
+            letter-spacing: 1px;
+        }
+
+        .preset-container {
+            width: 150px;
+            height: 65px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 0 10px;
+            gap: 10px;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 0, 128, 0.3);
+        }
+        .preset-container:active { transform: scale(0.95); }
+        .preset-container:hover { box-shadow: 0 0 15px rgba(0, 255, 255, 0.4); border-color: #00ffff; }
+        
+        .active-preset {
+            background: rgba(0, 255, 255, 0.15);
+            border-color: #00ffff;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.6);
+            transform: scale(1.05);
+        }
+
+        .preset-icon {
+            font-size: 1.8rem;
+            filter: drop-shadow(0 0 5px rgba(255,255,255,0.3));
+        }
+        .preset-text {
+            font-size: 0.75rem;
+            font-weight: 700;
+            line-height: 1.3;
+            color: #ddd;
+            white-space: pre-line; 
+            text-align: left;
+        }
+        .active-preset .preset-text {
+            color: #00ffff;
+            text-shadow: 0 0 5px rgba(0,255,255,0.5);
+        }
+
+        .sprite-container {
+            width: 80px;
+            height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            border: 1px solid rgba(255, 0, 128, 0.3);
+        }
+
+        .sprite-container:active:not(.locked) { transform: scale(0.9); }
+        .sprite-container:hover:not(.locked) {
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.4);
+            border-color: #00ffff;
+        }
+
+        .locked {
+            opacity: 0.4;
+            background: rgba(0, 0, 0, 0.5);
+            border-color: #555;
+            cursor: not-allowed;
+        }
+
+        .sprite-img {
+            z-index: 2;
+            position: relative;
+            filter: drop-shadow(0 0 8px rgba(255,255,255,0.2));
+            font-size: 2.2rem;
+            line-height: 1;
+            margin-bottom: 12px;
+        }
+
+        .sprite-name {
+            font-size: 10px;
+            font-weight: 700;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 4px;
+            border-radius: 6px;
+            border: 1px solid #ff007f;
+            z-index: 3;
+            color: #fff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            position: absolute;
+            bottom: -15px;
+            width: 110%; 
+            white-space: pre-line; 
+            line-height: 1.2;
+        }
+        
+        .locked .sprite-name { border-color: #555; color: #aaa; }
+
+        .shelf-divider {
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #ff007f, transparent);
+            width: 80%;
+            margin: 15px auto 20px auto;
+            opacity: 0.5;
+        }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.3); }
+        ::-webkit-scrollbar-thumb { background: #ff007f; border-radius: 3px; }
+
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+        .modal-animate {
+            animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        input[type=range].game-slider {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range].game-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 24px;
+            width: 24px;
+            border-radius: 50%;
+            background: #00ffff;
+            border: 2px solid #fff;
+            cursor: pointer;
+            margin-top: -8px;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.8);
+        }
+        input[type=range].game-slider::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 8px;
+            cursor: pointer;
+            background: #2d1b4e;
+            border-radius: 4px;
+            border: 1px solid #ff007f;
+        }
+
+        #drawing-canvas {
+            background-color: #000;
+            background-image: 
+                linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+            background-size: 20px 20px;
+            border: 2px solid #ff007f;
+            cursor: crosshair;
+            touch-action: none;
+            border-radius: 8px;
+            box-shadow: inset 0 0 20px rgba(255, 0, 127, 0.2);
+        }
+        .drawing-tool {
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #555;
+            background: #222;
+            color: #ddd;
+            transition: all 0.2s;
+        }
+        .drawing-tool:hover {
+            background: #444;
+        }
+    </style>
+    <!-- Three.js 라이브러리 추가 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body class="h-screen w-full">
+
+    <div id="main-container" class="w-full max-w-md h-full game-bg flex flex-col relative overflow-hidden shadow-[0_0_50px_rgba(255,0,128,0.2)] border-x border-gray-800">
+        
+        <header class="bg-black/80 border-b-2 border-[#ff007f] p-4 shrink-0 z-10 backdrop-blur-md">
+            <h1 class="text-2xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-[#ff007f] to-[#00ffff] title-font" style="text-shadow: 0 0 20px rgba(255,0,128,0.4);">
+                STACK TOWER MAKER
+            </h1>
+            <p class="text-xs text-center text-gray-300 mt-1">아이콘을 터치하여 게임 난이도와 속성을 튜닝하세요</p>
+        </header>
+
+        <main id="object-list" class="flex-1 overflow-y-auto pb-32">
+            <!-- JS로 동적 생성됨 -->
+        </main>
+
+        <div class="absolute bottom-0 left-0 w-full bg-[#050510]/95 border-t border-[#ff007f] p-4 flex gap-3 z-40 shadow-[0_-10px_30px_rgba(0,0,0,0.8)] backdrop-blur-md">
+            <button class="flex-1 bg-gradient-to-br from-blue-600 to-cyan-500 text-white font-bold py-3 rounded-xl hover:brightness-110 active:scale-95 transition shadow-[0_0_15px_rgba(0,255,255,0.4)] flex flex-col items-center justify-center gap-1" onclick="testPlay()">
+                <span class="text-2xl leading-none">🎮</span>
+                <span class="text-xs">테스트 플레이</span>
+            </button>
+            <button class="flex-1 bg-gradient-to-br from-pink-600 to-purple-600 text-white font-bold py-3 rounded-xl hover:brightness-110 active:scale-95 transition shadow-[0_0_15px_rgba(255,0,128,0.4)] flex flex-col items-center justify-center gap-1" onclick="deployGame()">
+                <span class="text-2xl leading-none">🚀</span>
+                <span class="text-xs">배포하기</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- 수정 모달 -->
+    <div id="edit-modal" class="fixed inset-0 z-50 flex flex-col justify-end hidden">
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" onclick="closeModal()"></div>
+        
+        <div class="bg-[#1a0b2e] border-t-2 border-[#00ffff] rounded-t-3xl relative z-10 flex flex-col max-h-[85vh] w-full max-w-md mx-auto modal-animate shadow-[0_-10px_40px_rgba(0,255,255,0.2)]">
+            <div class="p-4 border-b border-[#ff007f]/30 flex justify-between items-center bg-black/40 rounded-t-3xl shrink-0">
+                <div class="flex items-center gap-3">
+                    <div id="modal-icon" class="w-12 h-12 flex items-center justify-center bg-gray-900 rounded-xl text-3xl border border-[#ff007f] shadow-[0_0_10px_rgba(255,0,128,0.5)]">
+                    </div>
+                    <div>
+                        <h2 id="modal-title" class="text-lg font-bold text-white tracking-wide whitespace-pre-line leading-tight">객체 이름</h2>
+                        <p id="modal-category" class="text-xs text-[#00ffff] mt-1">카테고리</p>
+                    </div>
+                </div>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-white p-2 text-3xl leading-none font-bold">&times;</button>
+            </div>
+            
+            <div id="modal-body" class="p-5 overflow-y-auto flex-1 flex flex-col gap-5">
+                <!-- 입력 필드 동적 생성 -->
+            </div>
+            
+            <div class="p-4 border-t border-[#ff007f]/30 bg-black/60 flex gap-3 shrink-0">
+                <button onclick="closeModal()" class="flex-1 py-3 bg-gray-800 text-gray-300 rounded-xl font-bold hover:bg-gray-700 transition active:scale-95 border border-gray-600">닫기</button>
+                <button onclick="saveChanges(event)" class="flex-2 w-2/3 py-3 bg-gradient-to-r from-[#ff007f] to-[#7000ff] text-white rounded-xl font-bold hover:brightness-110 transition active:scale-95 text-lg shadow-[0_0_15px_rgba(255,0,128,0.5)]">설정 저장</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+    let currentDifficultyPreset = 'normal';
+
+    const GAME_DATA = {
+        presets: [
+            { id: 'diff_easy', name: '쉬움\n(일정 속도)', type: 'preset', icon: '🐢', value: 'easy' },
+            { id: 'diff_normal', name: '보통\n(점진적 가속)', type: 'preset', icon: '🚶‍♂️', value: 'normal' },
+            { id: 'diff_hard', name: '어려움\n(매 탑 랜덤)', type: 'preset', icon: '🎲', value: 'hard' },
+            { id: 'diff_veryHard', name: '매우 어려움\n(실시간 변속)', type: 'preset', icon: '🎢', value: 'veryHard' }
+        ],
+        rules: [
+            { id: 'GAME_SPEED_BASE', name: '기본 속도\n(쉬움, 보통만)', value: 0.12, type: 'rules', icon: '⚡', desc: '초기 블록 이동 속도' },
+            { id: 'GAME_SPEED_INC', name: '층당 가속도\n(보통만 설정가능)', value: 0.005, type: 'rules', icon: '📈', desc: '1층 쌓일 때마다 증가하는 속도량' },
+            { id: 'PERFECT_TOLERANCE', name: '퍼펙트 오차', value: 0.2, type: 'rules', icon: '🎯', desc: '이 수치만큼 어긋나도 완벽하게 쌓인 것으로 판정 (억까 방지용)' }
+        ],
+        blocks: [
+            { id: 'BLOCK_STYLE', name: '단면 모양', value: 'square', type: 'blocks', icon: '🎨', customShapeData: [], desc: '블록의 단면 쉐이프(Shape)를 결정합니다.\n직접 그리기를 통해 나만의 3D 블록을 디자인하세요!', options: { 'square': '기본 사각형', 'circle': '동그라미 (타원)', 'custom_draw': '단면 1붓 그리기 (3D 압출)' } },
+            { id: 'BLOCK_WIDTH', name: '가로 크기', value: 4.0, type: 'blocks', icon: '↔️', desc: '바닥 블록의 폭(X축 크기)' },
+            { id: 'BLOCK_DEPTH', name: '세로 크기', value: 4.0, type: 'blocks', icon: '↕️', desc: '바닥 블록의 깊이(Z축 크기)' }
+        ]
+    };
+
+    let currentEditingItem = null;
+    const listContainer = document.getElementById('object-list');
+
+    // --- 3D 프리뷰 & 드로잉 관련 변수 ---
+    let previewScene, previewCamera, previewRenderer, previewMesh;
+    let isDrawing = false;
+    let drawingContext = null;
+    let drawnPoints = []; // 3D 압출(Extrude)을 위한 좌표 배열
+
+    function selectPreset(presetValue) {
+        currentDifficultyPreset = presetValue;
+        const speedBase = GAME_DATA.rules.find(r => r.id === 'GAME_SPEED_BASE');
+        const speedInc = GAME_DATA.rules.find(r => r.id === 'GAME_SPEED_INC');
+        
+        if (presetValue === 'easy') { 
+            speedBase.value = 0.08; 
+            speedInc.value = 0.000; 
+        }
+        else if (presetValue === 'normal') { 
+            speedBase.value = 0.12; 
+            speedInc.value = 0.005; 
+        }
+        initRoom(); 
+    }
+
+    function createPresetSection(title, items) {
+        const section = document.createElement('section');
+        section.className = 'pt-6 flex flex-col items-center';
+        const titleLabel = document.createElement('div');
+        titleLabel.className = 'bg-black/50 border border-[#00ffff] text-[#00ffff] px-5 py-1.5 rounded-full text-sm font-bold mb-4 shadow-[0_0_10px_rgba(0,255,255,0.3)] backdrop-blur-sm tracking-widest';
+        titleLabel.innerText = title;
+        section.appendChild(titleLabel);
+        const grid = document.createElement('div');
+        grid.className = 'flex flex-wrap justify-center gap-4 px-4 pb-2 max-w-full';
+        items.forEach(item => {
+            const presetBox = document.createElement('div');
+            const isActive = currentDifficultyPreset === item.value;
+            presetBox.className = `preset-container ${isActive ? 'active-preset' : ''}`;
+            presetBox.onclick = () => selectPreset(item.value);
+            const emoji = document.createElement('div');
+            emoji.className = 'preset-icon';
+            emoji.innerText = item.icon;
+            presetBox.appendChild(emoji);
+            const nameTag = document.createElement('div');
+            nameTag.className = 'preset-text';
+            nameTag.innerText = item.name;
+            presetBox.appendChild(nameTag);
+            grid.appendChild(presetBox);
+        });
+        section.appendChild(grid);
+        const divider = document.createElement('div');
+        divider.className = 'shelf-divider mt-2';
+        section.appendChild(divider);
+        return section;
+    }
+
+    function createSection(title, items) {
+        const section = document.createElement('section');
+        section.className = 'pt-4 flex flex-col items-center w-full';
+        const titleLabel = document.createElement('div');
+        titleLabel.className = 'bg-black/50 border border-[#00ffff] text-[#00ffff] px-5 py-1.5 rounded-full text-sm font-bold mb-5 shadow-[0_0_10px_rgba(0,255,255,0.3)] backdrop-blur-sm tracking-widest';
+        titleLabel.innerText = title;
+        section.appendChild(titleLabel);
+        const grid = document.createElement('div');
+        grid.className = 'flex flex-wrap justify-center gap-x-8 gap-y-10 px-4 pb-2 max-w-full';
+        items.forEach(item => {
+            const container = document.createElement('div');
+            container.className = 'flex flex-col items-center gap-2';
+            const spriteBox = document.createElement('div');
+            
+            // 난이도에 따른 Lock 조건 처리
+            let isLocked = false;
+            if ((currentDifficultyPreset === 'hard' || currentDifficultyPreset === 'veryHard') && (item.id === 'GAME_SPEED_BASE' || item.id === 'GAME_SPEED_INC')) {
+                isLocked = true;
+            } else if (currentDifficultyPreset === 'easy' && item.id === 'GAME_SPEED_INC') {
+                isLocked = true;
+            }
+
+            spriteBox.className = `sprite-container ${isLocked ? 'locked' : ''}`;
+            spriteBox.onclick = () => { 
+                if (isLocked) {
+                    if (currentDifficultyPreset === 'easy' && item.id === 'GAME_SPEED_INC') {
+                        alert('쉬움 난이도는 층당 가속도가 적용되지 않습니다.');
+                    } else {
+                        alert('어려움 및 매우 어려움 난이도에서는 속도가 무작위로 제어되므로 임의 설정이 불가합니다.');
+                    }
+                    return;
+                }
+                openModal(item); 
+            };
+            const emoji = document.createElement('div');
+            emoji.className = 'sprite-img';
+            emoji.innerText = isLocked ? '🔒' : item.icon;
+            spriteBox.appendChild(emoji);
+            const nameTag = document.createElement('div');
+            nameTag.className = 'sprite-name';
+            nameTag.innerText = item.name;
+            spriteBox.appendChild(nameTag);
+            container.appendChild(spriteBox);
+            grid.appendChild(container);
+        });
+        section.appendChild(grid);
+        
+        // 블록 속성 섹션 아래에 실시간 3D 프리뷰 영역 추가
+        if (title.includes('Blocks')) {
+            const previewWrapper = document.createElement('div');
+            previewWrapper.className = 'w-full px-6 mt-8 mb-4';
+            previewWrapper.innerHTML = `
+                <div class="bg-black/50 border border-[#ff007f] rounded-2xl p-4 shadow-[0_0_15px_rgba(255,0,128,0.3)] flex flex-col items-center">
+                    <div class="text-[#ff007f] text-sm font-bold tracking-widest mb-3">🧊 실시간 3D 블록 프리뷰</div>
+                    <div id="preview-canvas-container" class="w-full h-44 bg-[#050510] rounded-xl overflow-hidden border border-gray-700 relative"></div>
+                    <div class="text-xs text-gray-400 mt-3 text-center break-keep">가로/세로 크기 및 직접 그린 단면 모양이 실제 3D 모델에 즉시 반영됩니다.</div>
+                </div>
+            `;
+            section.appendChild(previewWrapper);
+        }
+
+        const divider = document.createElement('div');
+        divider.className = 'shelf-divider mt-6';
+        section.appendChild(divider);
+        return section;
+    }
+
+    function initRoom() {
+        listContainer.innerHTML = ''; 
+        listContainer.appendChild(createPresetSection('- 난이도 프리셋 -', GAME_DATA.presets));
+        listContainer.appendChild(createSection('- 룰 설정 (Rules) -', GAME_DATA.rules));
+        listContainer.appendChild(createSection('- 블록 속성 (Blocks) -', GAME_DATA.blocks));
+        
+        // 3D 프리뷰 재초기화
+        setTimeout(initPreview, 50);
+    }
+
+    const modal = document.getElementById('edit-modal');
+    const modalTitle = document.getElementById('modal-title');
+    const modalCategory = document.getElementById('modal-category');
+    const modalIcon = document.getElementById('modal-icon');
+    const modalBody = document.getElementById('modal-body');
+
+    function liveUpdateGameData(key, value) {
+        if(currentEditingItem) {
+            currentEditingItem.value = value;
+            if(currentEditingItem.type === 'blocks') {
+                updatePreviewMesh();
+            }
+        }
+    }
+
+    function openModal(item) {
+        currentEditingItem = item;
+        modalTitle.innerText = item.name.replace('\n', ' '); 
+        modalCategory.innerText = typeKorMap[item.type];
+        modalIcon.innerHTML = `<span>${item.icon}</span>`;
+        modalBody.innerHTML = '';
+
+        if(item.desc) {
+            modalBody.innerHTML += `<div class="bg-gray-800/80 p-3 rounded-xl text-sm text-[#00ffff] mb-2 border border-[#00ffff]/30 leading-relaxed tracking-wide">${item.desc}</div>`;
+        }
+
+        const fieldGroup = document.createElement('div');
+        fieldGroup.className = 'flex flex-col gap-3 bg-black/40 p-4 rounded-xl border border-gray-700';
+
+        if (item.options) {
+            let optionsHtml = '';
+            for (const [optVal, optLabel] of Object.entries(item.options)) {
+                optionsHtml += `<option value="${optVal}" ${item.value === optVal ? 'selected' : ''}>${optLabel}</option>`;
+            }
+            fieldGroup.innerHTML = `
+                <div class="flex justify-between items-center mb-1"><label class="text-sm text-[#ff007f] font-bold uppercase tracking-wider">단면 형태 선택</label></div>
+                <select id="edit_value_select" class="w-full bg-[#1a0b2e] text-white p-3 rounded-lg border border-[#ff007f] focus:outline-none focus:border-[#00ffff] font-bold text-center text-lg">
+                    ${optionsHtml}
+                </select>
+                <div id="drawing-area" class="mt-4 ${item.value === 'custom_draw' ? '' : 'hidden'} flex flex-col items-center">
+                    <p class="text-[10px] text-gray-400 mb-2 uppercase tracking-tighter text-center leading-tight">손을 떼지 않고 "한 붓 그리기"로 선을 그려보세요.<br>가로/세로 수치에 맞게 진짜 3D 도형으로 압출됩니다.</p>
+                    <canvas id="drawing-canvas" width="240" height="240"></canvas>
+                    <div class="flex gap-2 mt-4 w-full">
+                        <button onclick="clearCanvas()" class="drawing-tool flex-1 text-center w-full py-2 bg-gray-800 rounded-lg hover:bg-gray-700 font-bold border border-gray-500">🧹 다시 그리기 (리셋)</button>
+                    </div>
+                </div>
+            `;
+
+            setTimeout(() => {
+                const select = document.getElementById('edit_value_select');
+                const area = document.getElementById('drawing-area');
+                select.onchange = (e) => {
+                    if (e.target.value === 'custom_draw') area.classList.remove('hidden');
+                    else area.classList.add('hidden');
+                    
+                    liveUpdateGameData('value', e.target.value);
+                };
+                initDrawingPad(item.customShapeData);
+            }, 0);
+        } else {
+            const config = getSliderConfig('value', item.value, item.id);
+            fieldGroup.innerHTML = `
+                <div class="flex justify-between items-center mb-1">
+                    <label class="text-sm text-[#ff007f] font-bold uppercase tracking-wider">수치 설정</label>
+                    <input type="number" id="display_value" value="${item.value}" step="${config.step}" class="font-mono text-xl text-center text-white font-bold bg-[#1a0b2e] px-2 py-1.5 rounded-lg border border-[#ff007f] w-28">
+                </div>
+                <div class="flex items-center gap-4 mt-2">
+                    <button onclick="adjustValue('edit_value', 'display_value', -${config.step})" class="w-12 h-12 bg-gray-800 rounded-xl text-3xl font-bold text-[#00ffff] border border-gray-600">-</button>
+                    <input type="range" id="edit_value" min="${config.min}" max="${config.max}" step="${config.step}" value="${item.value}" class="game-slider">
+                    <button onclick="adjustValue('edit_value', 'display_value', ${config.step})" class="w-12 h-12 bg-gray-800 rounded-xl text-3xl font-bold text-[#ff007f] border border-gray-600">+</button>
+                </div>
+            `;
+            setTimeout(() => {
+                const slider = document.getElementById('edit_value');
+                const display = document.getElementById('display_value');
+                slider.oninput = (e) => { 
+                    display.value = e.target.value; 
+                    liveUpdateGameData('value', parseFloat(e.target.value)); 
+                };
+                display.onchange = (e) => { 
+                    slider.value = e.target.value; 
+                    liveUpdateGameData('value', parseFloat(e.target.value));
+                };
+            }, 0);
+        }
+        modalBody.appendChild(fieldGroup);
+        modal.classList.remove('hidden');
+    }
+
+    // --- 단면 직접 그리기 (3D 압출용 데이터 생성) ---
+    function initDrawingPad(prevData) {
+        const canvas = document.getElementById('drawing-canvas');
+        if(!canvas) return;
+        drawingContext = canvas.getContext('2d');
+        drawingContext.lineJoin = 'round';
+        drawingContext.lineCap = 'round';
+        drawingContext.lineWidth = 10;
+        drawingContext.strokeStyle = '#00ffff';
+
+        if (prevData && prevData.length > 0) {
+            drawnPoints = [...prevData];
+            redrawPoints(canvas, drawingContext);
+        } else {
+            drawnPoints = [];
+        }
+
+        const startDraw = (e) => {
+            isDrawing = true;
+            drawnPoints = []; // 1붓 그리기 강제
+            drawingContext.clearRect(0, 0, canvas.width, canvas.height);
+            const pos = getMousePos(canvas, e);
+            drawnPoints.push(pos);
+            drawingContext.beginPath();
+            drawingContext.moveTo(pos.x, pos.y);
+        };
+        const draw = (e) => {
+            if (!isDrawing) return;
+            const pos = getMousePos(canvas, e);
+            drawnPoints.push(pos);
+            drawingContext.lineTo(pos.x, pos.y);
+            drawingContext.stroke();
+        };
+        const stopDraw = () => { 
+            if(!isDrawing) return;
+            isDrawing = false; 
+            drawingContext.closePath(); 
+            drawingContext.stroke();
+            updatePreviewMesh();
+        };
+
+        // PC 마우스 지원
+        canvas.addEventListener('mousedown', startDraw);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDraw);
+        canvas.addEventListener('mouseout', stopDraw);
+        
+        // [중요] 모바일 터치 스크롤 방지 및 그리기 지원
+        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDraw(e.touches[0]); }, { passive: false });
+        canvas.addEventListener('touchmove', (e) => { e.preventDefault(); draw(e.touches[0]); }, { passive: false });
+        canvas.addEventListener('touchend', (e) => { e.preventDefault(); stopDraw(); }, { passive: false });
+    }
+
+    function redrawPoints(canvas, ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if(drawnPoints.length === 0) return;
+        ctx.beginPath();
+        ctx.moveTo(drawnPoints[0].x, drawnPoints[0].y);
+        for(let i=1; i<drawnPoints.length; i++) {
+            ctx.lineTo(drawnPoints[i].x, drawnPoints[i].y);
+        }
+        ctx.closePath();
+        ctx.stroke();
+    }
+
+    function getMousePos(canvas, e) {
+        const rect = canvas.getBoundingClientRect();
+        return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    }
+
+    window.clearCanvas = function() {
+        drawingContext.clearRect(0, 0, 240, 240);
+        drawnPoints = [];
+        updatePreviewMesh();
+    };
+
+    // --- 3D 프리뷰 렌더링 로직 (ExtrudeGeometry 적용) ---
+    function initPreview() {
+        const container = document.getElementById('preview-canvas-container');
+        if(!container) return;
+        
+        container.innerHTML = ''; 
+        previewScene = new THREE.Scene();
+        
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+        const aspect = width / height;
+        const d = 6;
+        
+        previewCamera = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, 1, 100);
+        previewCamera.position.set(10, 10, 10);
+        previewCamera.lookAt(0, 0, 0);
+
+        previewRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        previewRenderer.setSize(width, height);
+        previewRenderer.setClearColor(0x000000, 0);
+        container.appendChild(previewRenderer.domElement);
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+        previewScene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(5, 10, 5);
+        previewScene.add(dirLight);
+
+        updatePreviewMesh();
+    }
+
+    function createCustomExtrudeGeometry(width, depth, thickness, pointsData) {
+        if (!pointsData || pointsData.length < 3) {
+            return new THREE.BoxGeometry(width, thickness, depth);
+        }
+
+        // 그린 점들의 Bounding Box 구하기
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        pointsData.forEach(p => {
+            if (p.x < minX) minX = p.x;
+            if (p.x > maxX) maxX = p.x;
+            if (p.y < minY) minY = p.y;
+            if (p.y > maxY) maxY = p.y;
+        });
+
+        const drawW = maxX - minX;
+        const drawH = maxY - minY;
+        if (drawW === 0 || drawH === 0) return new THREE.BoxGeometry(width, thickness, depth);
+
+        // Three.js Shape 생성
+        const shape = new THREE.Shape();
+        pointsData.forEach((p, i) => {
+            // 정규화 (-0.5 ~ 0.5)
+            let nx = (p.x - minX) / drawW - 0.5;
+            let ny = (p.y - minY) / drawH - 0.5;
+
+            // 게임 스케일에 맞게 조절 (Y축은 위아래 반전 필요)
+            let sx = nx * width;
+            let sy = -ny * depth; 
+
+            if (i === 0) shape.moveTo(sx, sy);
+            else shape.lineTo(sx, sy);
+        });
+        
+        // 시작점과 끝점 연결
+        let firstNx = (pointsData[0].x - minX) / drawW - 0.5;
+        let firstNy = (pointsData[0].y - minY) / drawH - 0.5;
+        shape.lineTo(firstNx * width, -firstNy * depth);
+
+        const extrudeSettings = { depth: thickness, bevelEnabled: false };
+        const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+
+        // 생성된 모델을 바닥(XZ평면)에 눕히고 중심점 맞추기
+        geometry.rotateX(Math.PI / 2);
+        geometry.center();
+
+        return geometry;
+    }
+
+    function updatePreviewMesh() {
+        if(!previewScene) return;
+        if(previewMesh) previewScene.remove(previewMesh);
+
+        const styleBlock = GAME_DATA.blocks.find(b => b.id === 'BLOCK_STYLE');
+        const style = styleBlock.value;
+        const width = parseFloat(GAME_DATA.blocks.find(b => b.id === 'BLOCK_WIDTH').value) || 4;
+        const depth = parseFloat(GAME_DATA.blocks.find(b => b.id === 'BLOCK_DEPTH').value) || 4;
+        const thickness = 1.0; 
+
+        let geometry;
+        const material = new THREE.MeshLambertMaterial({ color: 0xff007f }); // 프리뷰용 도파민 핑크
+
+        if (style === 'circle') {
+            geometry = new THREE.CylinderGeometry(width/2, width/2, thickness, 32);
+            if (width !== depth) {
+                geometry.scale(1, 1, depth/width);
+            }
+        } else if (style === 'custom_draw') {
+            // 수정 중이면 그려진 좌표 사용, 아니면 저장된 좌표 사용
+            let pts = (currentEditingItem && currentEditingItem.id === 'BLOCK_STYLE') ? drawnPoints : (styleBlock.customShapeData || []);
+            geometry = createCustomExtrudeGeometry(width, depth, thickness, pts);
+        } else {
+            geometry = new THREE.BoxGeometry(width, thickness, depth);
+        }
+
+        previewMesh = new THREE.Mesh(geometry, material);
+        previewScene.add(previewMesh);
+        
+        const d = Math.max(width, depth, thickness) * 1.5;
+        const container = document.getElementById('preview-canvas-container');
+        if(container) {
+            const aspect = container.clientWidth / container.clientHeight;
+            previewCamera.left = -d * aspect;
+            previewCamera.right = d * aspect;
+            previewCamera.top = d;
+            previewCamera.bottom = -d;
+            previewCamera.updateProjectionMatrix();
+        }
+    }
+
+    function animatePreview() {
+        requestAnimationFrame(animatePreview);
+        if (previewMesh && previewRenderer) {
+            previewMesh.rotation.y += 0.02; // 빙글빙글 회전
+            previewRenderer.render(previewScene, previewCamera);
+        }
+    }
+    animatePreview(); 
+
+    // --- 데이터 저장/관리 함수 ---
+    function saveChanges(event) {
+        if (!currentEditingItem) return;
+        const select = document.getElementById('edit_value_select');
+        const input = document.getElementById('edit_value');
+        
+        if (select) {
+            currentEditingItem.value = select.value;
+            if (select.value === 'custom_draw') {
+                currentEditingItem.customShapeData = [...drawnPoints]; // 모달 창 닫을 때 현재 좌표 데이터 저장
+            }
+        } else if (input) {
+            currentEditingItem.value = parseFloat(input.value) || 0;
+        }
+        
+        const btn = event.currentTarget;
+        btn.innerText = "저장 완료!";
+        setTimeout(() => { 
+            closeModal(); 
+            initRoom(); 
+            btn.innerText = "설정 저장"; 
+        }, 400);
+    }
+
+    function getSliderConfig(key, val, itemId) {
+        if (itemId === 'GAME_SPEED_BASE') return { min: 0.01, max: 0.5, step: 0.01 };
+        if (itemId === 'GAME_SPEED_INC') return { min: 0.000, max: 0.050, step: 0.001 };
+        if (itemId === 'PERFECT_TOLERANCE') return { min: 0.01, max: 1.0, step: 0.01 };
+        if (itemId === 'BLOCK_WIDTH') return { min: 1.0, max: 10.0, step: 0.5 };
+        if (itemId === 'BLOCK_DEPTH') return { min: 1.0, max: 10.0, step: 0.5 };
+        return { min: 0, max: 100, step: 1 };
+    }
+
+    window.adjustValue = function(inputId, displayId, delta) {
+        const input = document.getElementById(inputId);
+        const display = document.getElementById(displayId);
+        let current = parseFloat(input.value);
+        let newValue = current + delta;
+        const min = parseFloat(input.min), max = parseFloat(input.max);
+        if (newValue < min) newValue = min; if (newValue > max) newValue = max;
+        const step = parseFloat(input.step);
+        let precision = step.toString().includes('.') ? step.toString().split('.')[1].length : 0;
+        input.value = newValue.toFixed(precision);
+        display.value = newValue.toFixed(precision);
+        liveUpdateGameData('value', parseFloat(input.value));
+    };
+
+    function closeModal() { 
+        modal.classList.add('hidden'); 
+        currentEditingItem = null; 
+        drawnPoints = []; // 메모리 초기화
+    }
+    
+    function testPlay() { 
+        const savedConfig = {
+            GAME_DIFFICULTY: currentDifficultyPreset
+        };
+        GAME_DATA.rules.forEach(r => savedConfig[r.id] = r.value);
+        GAME_DATA.blocks.forEach(b => {
+            savedConfig[b.id] = b.value;
+            if (b.customShapeData) {
+                savedConfig[b.id + '_SHAPE'] = b.customShapeData; // 모양 좌표값 저장
+            }
+        });
+        
+        localStorage.setItem('stack_tower_custom_config', JSON.stringify(savedConfig));
+        alert(`[설정 저장 및 테스트 플레이]\n난이도: ${currentDifficultyPreset}\n그린 형태의 좌표가 3D Extrude 데이터로 게임 씬에 전달됩니다.`); 
+    }
+    
+    function deployGame() { 
+        alert('게임 배포가 완료되었습니다!'); 
+    }
+
+    const typeKorMap = { 'rules': '시스템 설정', 'blocks': '블록 외형 설정' };
+    window.onload = initRoom;
+</script>
+</body>
+</html>

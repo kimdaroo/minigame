@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>사진 굴리기</title>
+    <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            touch-action: none;
+            font-family: 'Black Han Sans', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            max-width: 600px;
+            background: linear-gradient(to bottom, #1a1a2e, #16213e);
+            overflow: hidden;
+            box-shadow: 0 0 30px rgba(0,0,0,0.8);
+        }
+
+        @media (min-aspect-ratio: 9/16) and (min-width: 600px) {
+            #game-container {
+                width: calc(100vh * 9 / 16);
+                height: 100vh;
+                border-radius: 20px;
+            }
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            color: white;
+            text-shadow: 4px 4px 0 #000;
+        }
+
+        #start-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(5px);
+            justify-content: center;
+            pointer-events: auto; /* 시작 화면 클릭 가능하도록 */
+        }
+
+        h1 {
+            font-size: 15vw;
+            margin: 0;
+            letter-spacing: 2px;
+            color: #ffcc00;
+            line-height: 1.1;
+            text-shadow: 0 0 20px rgba(255,204,0,0.5), 4px 4px 0 #ff0055;
+        }
+        
+        @media (min-width: 600px) {
+            h1 { font-size: 5rem; }
+        }
+
+        #player-preview-container {
+            margin: 30px 0 15px 0;
+            position: relative;
+        }
+
+        #player-preview {
+            width: 140px;
+            height: 140px;
+            object-fit: cover;
+            border-radius: 20px;
+            border: 4px solid #fff;
+            box-shadow: 0 0 30px rgba(0, 255, 136, 0.6);
+            background-color: #0f3460;
+        }
+
+        #change-photo-btn {
+            margin-top: 15px;
+            padding: 10px 25px;
+            font-size: 1.2rem;
+            font-family: 'Black Han Sans', sans-serif;
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid #fff;
+            border-radius: 50px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        #change-photo-btn:active {
+            transform: scale(0.95);
+            background: rgba(255,255,255,0.2);
+        }
+
+        #file-input { display: none; }
+
+        .pulse-text {
+            margin-top: 50px;
+            font-size: 2.5rem;
+            color: #00ff88;
+            animation: pulse 1s infinite alternate;
+            text-shadow: 0 0 15px rgba(0, 255, 136, 0.8), 3px 3px 0 #000;
+        }
+
+        @keyframes pulse {
+            from { opacity: 0.4; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1.05); }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="ui-layer">
+            <div id="start-screen">
+                <h1>사진<br>굴리기</h1>
+                
+                <div id="player-preview-container">
+                    <img id="player-preview" src="https://lh3.googleusercontent.com/d/1Ytxw_DoBaGwYgsc6jGmJDVfYLTfAaCCL" alt="내 사진">
+                </div>
+                
+                <button id="change-photo-btn" onclick="document.getElementById('file-input').click(); event.stopPropagation();">
+                    사진 변경 📸
+                </button>
+                <input type="file" id="file-input" accept="image/*">
+                
+                <div class="pulse-text" id="tap-to-start-text">TAP To START</div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const startScreen = document.getElementById('start-screen');
+    const fileInput = document.getElementById('file-input');
+
+    const GAME_WIDTH = 900;
+    const GAME_HEIGHT = 1600;
+    canvas.width = GAME_WIDTH;
+    canvas.height = GAME_HEIGHT;
+
+    // --- 메이커 룸 설정값 불러오기 ---
+    let gameConfig = {
+        'setting-speed': 12,
+        'setting-obs1': 15,
+        'setting-obs2': 10,
+        'setting-obs3': 10,
+        'setting-item': 40
+    };
+    try {
+        const savedConfig = localStorage.getItem('rolling_photo_config');
+        if (savedConfig) {
+            Object.assign(gameConfig, JSON.parse(savedConfig));
+        }
+    } catch(e) { console.log("설정 불러오기 실패, 기본값 사용"); }
+
+    let frame = 0;
+    let score = 0;
+    let highScore = 0;
+    try { highScore = parseInt(localStorage.getItem('memeRunnerHighScore')) || 0; } catch(e) {}
+    let gameState = 'START'; 
+    let shakeTime = 0;
+    
+    // 체력 및 무적 시스템
+    let hp = 2; // 2: 멀쩡함, 1: 사진 파손(유리창 깨짐), 0: 사망
+    let invincibilityTimer = 0; 
+    let starTimer = 0; 
+    
+    let worldOffset = 0;
+    let rollOffset = 0;
+    let obstacleSpawnDist = 0; 
+    let itemSpawnDist = 0; 
+
+    let playerImg = new Image();
+    playerImg.src = "https://lh3.googleusercontent.com/d/1Ytxw_DoBaGwYgsc6jGmJDVfYLTfAaCCL"; 
+
+    fileInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if(file) {
+            const reader = new FileReader();
+            reader.onload = function(event) { 
+                playerImg.src = event.target.result; 
+                document.getElementById('player-preview').src = event.target.result;
+            }
+            reader.readAsDataURL(file);
+        }
+    });
+
+    const player = {
+        x: 150,
+        y: 0, 
+        w: 120,
+        h: 120,
+        vy: 0,
+        gravity: 2.2,    
+        jumpPower: -38,  
+        rotation: 0,
+        isGrounded: true,
+        jumpCount: 0,    
+        maxJumps: 2,     
+        spinSpeed: 0.15  
+    };
+
+    let obstacles = [];
+    let items = []; 
+    let particles = [];
+    let shatterPieces = [];
+    let floatingTexts = []; 
+    let trails = []; 
+    let gameSpeed = gameConfig['setting-speed']; 
+    let baseSpeed = gameConfig['setting-speed'];
+
+    function getFloorY(worldX) {
+        const baseFloor = GAME_HEIGHT - 350;
+        return baseFloor + Math.sin(worldX * 0.0025) * 150 + Math.sin(worldX * 0.006) * 70;
+    }
+
+    function spawnJumpParticles(floorY) {
+        for(let i=0; i<15; i++) {
+            particles.push({
+                x: player.x + player.w/2 + (Math.random()-0.5)*40,
+                y: floorY,
+                vx: -gameSpeed * 0.3 + (Math.random()-0.5)*8,
+                vy: -Math.random()*8,
+                life: 1.0, size: 15,
+                color: ['#fff', '#ffcc00', '#ff0055'][Math.floor(Math.random()*3)]
+            });
+        }
+    }
+
+    function spawnRainbowParticles() {
+        const colors = ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#4B0082', '#9400D3'];
+        for(let i=0; i<40; i++) {
+            particles.push({
+                x: player.x + player.w/2,
+                y: player.y + player.h/2,
+                vx: (Math.random()-0.5)*30,
+                vy: (Math.random()-0.5)*30,
+                life: 1.0, size: Math.random() * 20 + 10,
+                color: colors[Math.floor(Math.random()*colors.length)]
+            });
+        }
+    }
+
+    function spawnDustParticles(floorY) {
+        for(let i=0; i<6; i++) {
+            particles.push({
+                x: player.x + player.w/2 + (Math.random()-0.5)*player.w,
+                y: floorY,
+                vx: -gameSpeed * 0.5 + (Math.random()-0.5)*4, 
+                vy: -Math.random()*5,
+                life: 0.8, size: Math.random() * 12 + 6,
+                color: 'rgba(255, 255, 255, 0.4)'
+            });
+        }
+    }
+
+    function shatterPlayer() {
+        const cols = 4, rows = 4;
+        const pW = player.w / cols, pH = player.h / rows;
+        const imgW = playerImg.width ? playerImg.width / cols : 1; 
+        const imgH = playerImg.height ? playerImg.height / rows : 1;
+
+        for(let i=0; i<cols; i++) {
+            for(let j=0; j<rows; j++) {
+                shatterPieces.push({
+                    x: player.x + i * pW,
+                    y: player.y + j * pH,
+                    w: pW, h: pH,
+                    vx: (Math.random() - 0.2) * 30, 
+                    vy: (Math.random() - 1) * 35,   
+                    rot: 0, vRot: (Math.random() - 0.5) * 0.8,
+                    imgSx: i * imgW, imgSy: j * imgH, imgSw: imgW, imgSh: imgH
+                });
+            }
+        }
+        shakeTime = 30; 
+    }
+
+    function jump() {
+        if (gameState === 'PLAYING') {
+            let currentFloorY = getFloorY(worldOffset + player.x + player.w/2);
+
+            if (player.isGrounded) {
+                player.vy = player.jumpPower;
+                player.isGrounded = false;
+                player.y -= 10;
+                player.jumpCount = 1;
+                player.spinSpeed = starTimer > 0 ? 0.6 : 0.35; 
+                spawnJumpParticles(currentFloorY);
+                shakeTime = starTimer > 0 ? 10 : 5; 
+            } else if (player.jumpCount < player.maxJumps) {
+                player.vy = player.jumpPower * 0.85; 
+                player.jumpCount++;
+                player.spinSpeed = starTimer > 0 ? 1.5 : 1.2; 
+                spawnRainbowParticles();
+                shakeTime = 15; 
+                
+                const memes = ["폼 미쳤다!", "이단점프 뇌절!", "물리엔진 오류남", "우주로 가즈아!!", "응 안죽어~"];
+                floatingTexts.push({
+                    text: memes[Math.floor(Math.random()*memes.length)],
+                    x: player.x + player.w/2,
+                    y: player.y - 50,
+                    life: 1.0
+                });
+            }
+        } else if (gameState === 'GAMEOVER') {
+            gameState = 'START';
+            startScreen.style.display = 'flex';
+        }
+    }
+
+    function startGame() {
+        if (gameState === 'START') {
+            resetGame();
+            gameState = 'PLAYING';
+            startScreen.style.display = 'none';
+        }
+    }
+
+    // 화면 아무곳이나 탭/클릭하면 게임 시작
+    startScreen.addEventListener('click', (e) => {
+        if (e.target.id !== 'change-photo-btn' && e.target.id !== 'file-input') {
+            startGame();
+        }
+    });
+
+    const container = document.getElementById('game-container');
+    window.addEventListener('keydown', (e) => { 
+        if(e.code === 'Space') {
+            if (gameState === 'START') startGame();
+            else jump(); 
+        }
+    });
+    container.addEventListener('touchstart', (e) => {
+        if (e.target.id === 'change-photo-btn' || e.target.id === 'file-input') return;
+        if(gameState === 'START') { startGame(); return; }
+        e.preventDefault(); 
+        jump();
+    }, {passive: false});
+    container.addEventListener('mousedown', (e) => {
+        if (e.target.id === 'change-photo-btn' || e.target.id === 'file-input') return;
+        if(gameState === 'START') { startGame(); return; }
+        jump(); 
+    });
+
+    function resetGame() {
+        baseSpeed = gameConfig['setting-speed'];
+        gameSpeed = baseSpeed;
+        worldOffset = 0;
+        rollOffset = 0;
+        obstacleSpawnDist = 500;
+        itemSpawnDist = 1500;
+        
+        player.vy = 0;
+        player.rotation = 0;
+        player.isGrounded = true;
+        player.jumpCount = 0;
+        player.spinSpeed = 0.15;
+        
+        hp = 2; 
+        invincibilityTimer = 0; 
+        starTimer = 0;
+        
+        obstacles = []; items = []; particles = []; shatterPieces = []; floatingTexts = []; trails = [];
+        score = 0; frame = 0;
+    }
+
+    function update() {
+        if (gameState === 'PLAYING') {
+            frame++;
+            if (invincibilityTimer > 0) invincibilityTimer--;
+            if (starTimer > 0) {
+                starTimer--;
+                if (frame % 5 === 0) spawnRainbowParticles(); 
+            }
+            
+            score += Math.floor(gameSpeed * (starTimer > 0 ? 150 : 100));
+            
+            let playerWorldX = worldOffset + player.x + player.w/2;
+            let currentFloorY = getFloorY(playerWorldX);
+            let nextFloorY = getFloorY(playerWorldX + 10);
+            
+            let targetSpeed = gameSpeed; 
+            
+            if (player.isGrounded) {
+                let slope = (nextFloorY - currentFloorY) / 10; 
+                targetSpeed = baseSpeed + (slope * 22); 
+                targetSpeed = Math.max(6, Math.min(targetSpeed, baseSpeed * 2.5));
+            }
+
+            if (starTimer > 0) targetSpeed = baseSpeed * 1.6;
+            
+            gameSpeed += (targetSpeed - gameSpeed) * 0.1; 
+            worldOffset += gameSpeed;
+
+            if (!player.isGrounded) {
+                player.vy += player.gravity;
+                player.y += player.vy;
+                player.rotation += player.spinSpeed; 
+                trails.push({x: player.x, y: player.y, rot: player.rotation, life: 1.0});
+                if(trails.length > 8) trails.shift();
+
+                let playerCenterY = player.y + player.h/2;
+                let angleMod = player.rotation % (Math.PI/2);
+                if (angleMod < 0) angleMod += Math.PI/2;
+                let centerHeight = (player.w * Math.SQRT1_2) * Math.cos(Math.PI/4 - angleMod);
+
+                if (player.vy > 0 && playerCenterY + centerHeight >= currentFloorY) {
+                    player.isGrounded = true;
+                    player.jumpCount = 0;
+                    rollOffset = player.rotation - (worldOffset / player.w * Math.PI/2);
+                    shakeTime = Math.max(shakeTime, starTimer > 0 ? 10 : 5); 
+                    spawnDustParticles(currentFloorY);
+                }
+            } 
+            
+            if (player.isGrounded) {
+                let prevPhase = Math.floor(player.rotation / (Math.PI/2));
+                player.rotation = (worldOffset / player.w * (Math.PI/2)) + rollOffset;
+                let currentPhase = Math.floor(player.rotation / (Math.PI/2));
+
+                if (currentPhase > prevPhase) {
+                    shakeTime = Math.max(shakeTime, starTimer > 0 ? 8 : 4);
+                    spawnDustParticles(currentFloorY);
+                }
+
+                let angleMod = player.rotation % (Math.PI/2);
+                if (angleMod < 0) angleMod += Math.PI/2;
+                let centerHeight = (player.w * Math.SQRT1_2) * Math.cos(Math.PI/4 - angleMod);
+                
+                player.y = currentFloorY - centerHeight - player.h/2;
+
+                if (frame % 2 === 0) {
+                    trails.push({x: player.x, y: player.y, rot: player.rotation, life: 0.6});
+                    if(trails.length > 8) trails.shift();
+                }
+            }
+
+            // 아이템 생성 (메이커 설정값 반영)
+            itemSpawnDist -= gameSpeed;
+            if (itemSpawnDist <= 0) {
+                let itemRate = gameConfig['setting-item'];
+                if (itemRate > 0) {
+                    let spawnWorldX = worldOffset + GAME_WIDTH + 200;
+                    let isStar = Math.random() > 0.6; 
+                    items.push({
+                        type: isStar ? 'star' : 'heal',
+                        worldX: spawnWorldX,
+                        offsetY: -150 - Math.random() * 100, 
+                        w: 70, h: 70, time: 0
+                    });
+                }
+                let nextDist = 10000 - (itemRate * 80); 
+                if (nextDist < 1000) nextDist = 1000;
+                itemSpawnDist = nextDist + Math.random() * 2000;
+            }
+
+            // 장애물 생성 (메이커 설정값 반영)
+            obstacleSpawnDist -= gameSpeed;
+            if (obstacleSpawnDist <= 0) {
+                let w1 = gameConfig['setting-obs1'];
+                let w2 = gameConfig['setting-obs2'];
+                let w3 = gameConfig['setting-obs3'];
+                let wNormal = 50; 
+                let totalWeight = w1 + w2 + w3 + wNormal;
+                let rand = Math.random() * totalWeight;
+
+                let spawnWorldX = worldOffset + GAME_WIDTH + 200; 
+
+                if (rand < w1) { 
+                    const badWords = ["월요일", "탈모", "잔고 0원", "야근", "팀장님", "마감"];
+                    let bText = badWords[Math.floor(Math.random()*badWords.length)];
+                    obstacles.push({
+                        type: 'text', text: bText,
+                        worldX: spawnWorldX, offsetY: -150, 
+                        w: bText.length * 65, h: 80,
+                        movement: 'wave', time: Math.random() * Math.PI 
+                    });
+                } else if (rand < w1 + w2) {
+                    obstacles.push({
+                        type: 'missile',
+                        worldX: spawnWorldX, offsetY: -80 - Math.random() * 100, 
+                        w: 120, h: 40, movement: 'dash'
+                    });
+                } else if (rand < w1 + w2 + w3) {
+                    obstacles.push({
+                        type: 'drop',
+                        worldX: spawnWorldX, currentY: -200, 
+                        w: 80, h: 150, movement: 'drop', vy: 0
+                    });
+                } else {
+                    let isFlying = Math.random() > 0.7;
+                    obstacles.push({
+                        type: 'normal',
+                        worldX: spawnWorldX, offsetY: isFlying ? -220 : -60, 
+                        w: 50 + Math.random() * 40, h: 60 + Math.random() * 90,
+                        movement: 'normal'
+                    });
+                }
+                obstacleSpawnDist = 600 + Math.random() * 800;
+            }
+
+            for (let i = items.length - 1; i >= 0; i--) {
+                let item = items[i];
+                let itemFloorY = getFloorY(item.worldX);
+                item.screenX = item.worldX - worldOffset;
+                item.time += 0.1;
+                item.y = itemFloorY + item.offsetY + Math.sin(item.time) * 30; 
+
+                let hitBoxMargin = 10;
+                if (player.x < item.screenX + item.w - hitBoxMargin &&
+                    player.x + player.w > item.screenX + hitBoxMargin &&
+                    player.y < item.y + item.h - hitBoxMargin &&
+                    player.y + player.h > item.y + hitBoxMargin) {
+                    
+                    if (item.type === 'heal') {
+                        if (hp < 2) {
+                            hp = 2; 
+                            floatingTexts.push({ text: "수리 완료! 🩹", x: player.x + player.w/2, y: player.y - 50, life: 1.0 });
+                        } else {
+                            score += 5000; 
+                            floatingTexts.push({ text: "개꿀! +5000 💰", x: player.x + player.w/2, y: player.y - 50, life: 1.0 });
+                        }
+                    } else if (item.type === 'star') {
+                        starTimer = 300; 
+                        floatingTexts.push({ text: "광기 모드!! 🌟", x: player.x + player.w/2, y: player.y - 50, life: 1.0 });
+                        shakeTime = 20;
+                    }
+                    items.splice(i, 1);
+                    continue;
+                }
+                if (item.screenX + item.w < -100) items.splice(i, 1);
+            }
+
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                let obs = obstacles[i];
+                let obsFloorY = getFloorY(obs.worldX);
+                
+                if (obs.movement === 'dash') {
+                    obs.worldX -= gameSpeed * 0.6; 
+                    obs.y = obsFloorY + obs.offsetY;
+                } else if (obs.movement === 'wave') {
+                    obs.time += 0.1;
+                    obs.y = obsFloorY + obs.offsetY + Math.sin(obs.time) * 120;
+                } else if (obs.movement === 'drop') {
+                    let screenX = obs.worldX - worldOffset;
+                    if (screenX < GAME_WIDTH - 250) { 
+                        obs.vy += player.gravity * 0.8;
+                        obs.currentY += obs.vy;
+                    }
+                    obs.y = Math.min(obs.currentY, obsFloorY - obs.h);
+                } else {
+                    obs.y = obsFloorY + obs.offsetY;
+                }
+
+                obs.screenX = obs.worldX - worldOffset; 
+
+                let hitBoxMargin = 28; 
+                if (player.x + hitBoxMargin < obs.screenX + obs.w &&
+                    player.x + player.w - hitBoxMargin > obs.screenX &&
+                    player.y + hitBoxMargin < obs.y + obs.h &&
+                    player.y + player.h - hitBoxMargin > obs.y) {
+                    
+                    if (starTimer > 0) {
+                        score += 2000;
+                        floatingTexts.push({ text: "💥박살!", x: obs.screenX, y: obs.y, life: 0.8 });
+                        obstacles.splice(i, 1);
+                        shakeTime = 5;
+                        continue;
+                    } else if (invincibilityTimer > 0) {
+                    } else if (hp > 1) {
+                        hp = 1; 
+                        invincibilityTimer = 90; 
+                        shakeTime = 25;
+                        floatingTexts.push({ text: "앗 내 얼굴! 💔", x: player.x + player.w/2, y: player.y - 50, life: 1.0 });
+                        obstacles.splice(i, 1); 
+                        continue;
+                    } else {
+                        gameState = 'GAMEOVER';
+                        if (score > highScore) {
+                            highScore = score;
+                            try { localStorage.setItem('memeRunnerHighScore', highScore); } catch(e) {}
+                        }
+                        shatterPlayer();
+                    }
+                }
+                if (obs.screenX + obs.w < -100) obstacles.splice(i, 1);
+            }
+        }
+
+        if (shatterPieces.length > 0) {
+            for (let p of shatterPieces) {
+                p.vy += player.gravity; p.x += p.vx; p.y += p.vy; p.rot += p.vRot;
+            }
+        }
+
+        for (let i = particles.length - 1; i >= 0; i--) {
+            let p = particles[i];
+            p.x += p.vx; p.y += p.vy; p.life -= 0.04;
+            if (p.life <= 0) particles.splice(i, 1);
+        }
+        for (let i = trails.length - 1; i >= 0; i--) {
+            let t = trails[i];
+            t.life -= 0.15;
+            if (t.life <= 0) trails.splice(i, 1);
+        }
+        for (let i = floatingTexts.length - 1; i >= 0; i--) {
+            let ft = floatingTexts[i];
+            ft.y -= 4; ft.life -= 0.02;
+            if (ft.life <= 0) floatingTexts.splice(i, 1);
+        }
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+        ctx.save();
+        if (shakeTime > 0) {
+            const dx = (Math.random() - 0.5) * (starTimer > 0 ? 10 : 30); 
+            const dy = (Math.random() - 0.5) * (starTimer > 0 ? 10 : 30);
+            ctx.translate(dx, dy);
+            shakeTime--;
+        }
+
+        ctx.fillStyle = starTimer > 0 ? (Math.floor(frame/5)%2===0 ? '#2a1a2e' : '#16213e') : '#16213e';
+        ctx.beginPath();
+        ctx.moveTo(0, GAME_HEIGHT);
+        for (let x = 0; x <= GAME_WIDTH + 50; x += 30) {
+            ctx.lineTo(x, getFloorY(worldOffset + x));
+        }
+        ctx.lineTo(GAME_WIDTH, GAME_HEIGHT);
+        ctx.fill();
+
+        ctx.lineWidth = 10;
+        ctx.strokeStyle = starTimer > 0 ? '#ff0055' : '#0f3460';
+        ctx.beginPath();
+        for (let x = 0; x <= GAME_WIDTH + 50; x += 30) {
+            if(x===0) ctx.moveTo(x, getFloorY(worldOffset + x));
+            else ctx.lineTo(x, getFloorY(worldOffset + x));
+        }
+        ctx.stroke();
+
+        let startGrid = Math.floor(worldOffset / 200) * 200;
+        ctx.fillStyle = starTimer > 0 ? 'rgba(255, 204, 0, 0.5)' : '#0f3460';
+        for(let gx = startGrid; gx < startGrid + GAME_WIDTH + 200; gx += 200) {
+            let screenX = gx - worldOffset;
+            let gy = getFloorY(gx) + 15;
+            ctx.fillRect(screenX, gy, 80, 15);
+        }
+
+        for (let p of particles) {
+            ctx.globalAlpha = p.life;
+            ctx.fillStyle = p.color;
+            ctx.fillRect(p.x, p.y, p.size || 15, p.size || 15);
+        }
+        ctx.globalAlpha = 1.0;
+
+        for (let item of items) {
+            ctx.font = '70px "Black Han Sans"';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            ctx.save();
+            ctx.translate(item.screenX + item.w/2, item.y + item.h/2);
+            if (item.type === 'star') {
+                ctx.rotate(frame * 0.1);
+                ctx.shadowColor = '#ffff00'; ctx.shadowBlur = 20;
+                ctx.fillText('🌟', 0, 0);
+            } else {
+                ctx.rotate(Math.sin(frame * 0.1) * 0.2);
+                ctx.shadowColor = '#00ff88'; ctx.shadowBlur = 20;
+                ctx.fillText('🩹', 0, 0);
+            }
+            ctx.restore();
+        }
+
+        for (let obs of obstacles) {
+            if (obs.type === 'text') {
+                ctx.fillStyle = '#ff0055';
+                ctx.font = '80px "Black Han Sans"';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'alphabetic';
+                ctx.fillText(obs.text, obs.screenX, obs.y + obs.h - 10);
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 3;
+                ctx.strokeText(obs.text, obs.screenX, obs.y + obs.h - 10);
+            } else if (obs.type === 'missile') {
+                ctx.fillStyle = '#ffcc00';
+                ctx.beginPath();
+                ctx.roundRect(obs.screenX, obs.y, obs.w, obs.h, 20);
+                ctx.fill();
+                
+                ctx.fillStyle = '#ff0055';
+                ctx.beginPath();
+                ctx.moveTo(obs.screenX + obs.w, obs.y + 5);
+                ctx.lineTo(obs.screenX + obs.w + 40 + Math.random() * 40, obs.y + obs.h / 2);
+                ctx.lineTo(obs.screenX + obs.w, obs.y + obs.h - 5);
+                ctx.fill();
+
+                ctx.fillStyle = '#000';
+                ctx.font = '24px "Black Han Sans"';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'alphabetic';
+                ctx.fillText('🚀', obs.screenX + obs.w / 2, obs.y + 28);
+            } else if (obs.type === 'drop') {
+                ctx.fillStyle = '#444'; 
+                ctx.fillRect(obs.screenX, obs.y, obs.w, obs.h);
+                ctx.fillStyle = '#ffcc00';
+                ctx.fillRect(obs.screenX, obs.y + obs.h - 30, obs.w, 30); 
+                ctx.fillStyle = '#fff';
+                ctx.font = '50px "Black Han Sans"';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'alphabetic';
+                ctx.fillText('!', obs.screenX + obs.w / 2, obs.y + obs.h / 2 + 15);
+            } else {
+                ctx.fillStyle = '#e94560';
+                ctx.beginPath();
+                ctx.roundRect(obs.screenX, obs.y, obs.w, obs.h, 10);
+                ctx.fill();
+                ctx.fillStyle = 'white';
+                ctx.fillRect(obs.screenX + 10, obs.y + 15, 12, 12);
+                ctx.fillRect(obs.screenX + obs.w - 22, obs.y + 15, 12, 12);
+                ctx.fillStyle = '#e94560';
+            }
+        }
+
+        if (gameState !== 'GAMEOVER' && gameState !== 'START') {
+            for (let t of trails) {
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, t.life * 0.4);
+                ctx.translate(t.x + player.w/2, t.y + player.h/2);
+                ctx.rotate(t.rot);
+                ctx.lineWidth = 6;
+                ctx.strokeStyle = starTimer > 0 ? `hsl(${(frame*10)%360}, 100%, 50%)` : '#ffcc00'; 
+                ctx.strokeRect(-player.w/2, -player.h/2, player.w, player.h);
+                try { ctx.drawImage(playerImg, -player.w/2, -player.h/2, player.w, player.h); } catch(e) {}
+                ctx.restore();
+            }
+            ctx.globalAlpha = 1.0;
+
+            ctx.save();
+            if (invincibilityTimer > 0 && starTimer === 0 && Math.floor(frame / 6) % 2 === 0) {
+                ctx.globalAlpha = 0.3;
+            }
+            ctx.translate(player.x + player.w/2, player.y + player.h/2);
+            ctx.rotate(player.rotation);
+            ctx.lineWidth = 6;
+            ctx.strokeStyle = starTimer > 0 ? `hsl(${(frame*20)%360}, 100%, 50%)` : '#fff';
+            
+            if(starTimer > 0) {
+                ctx.shadowColor = ctx.strokeStyle;
+                ctx.shadowBlur = 15;
+            }
+
+            ctx.strokeRect(-player.w/2, -player.h/2, player.w, player.h);
+            
+            try {
+                ctx.drawImage(playerImg, -player.w/2, -player.h/2, player.w, player.h);
+            } catch(e) {
+                ctx.fillStyle = '#00d2ff';
+                ctx.fillRect(-player.w/2, -player.h/2, player.w, player.h);
+            }
+            ctx.shadowBlur = 0;
+
+            if (hp === 1) {
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(-player.w/2, -player.h/2); ctx.lineTo(0, 0); ctx.lineTo(player.w/3, -player.h/2);
+                ctx.moveTo(0, 0); ctx.lineTo(player.w/2, player.h/4);
+                ctx.moveTo(0, 0); ctx.lineTo(-player.w/4, player.h/2);
+                ctx.moveTo(player.w/6, -player.h/4); ctx.lineTo(player.w/2, -player.h/6);
+                ctx.moveTo(-player.w/6, player.h/4); ctx.lineTo(-player.w/2, player.h/6);
+                ctx.stroke();
+            }
+
+            if (starTimer > 0) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+                ctx.fillRect(-player.w/3, -player.h/4, player.w/3 - 5, player.h/4);
+                ctx.fillRect(5, -player.h/4, player.w/3 - 5, player.h/4);
+                ctx.fillRect(-player.w/2, -player.h/4 + 5, player.w, 6);
+            }
+            ctx.restore();
+        }
+
+        if (shatterPieces.length > 0) {
+            for (let p of shatterPieces) {
+                ctx.save();
+                ctx.translate(p.x + p.w/2, p.y + p.h/2);
+                ctx.rotate(p.rot);
+                try { ctx.drawImage(playerImg, p.imgSx, p.imgSy, p.imgSw, p.imgSh, -p.w/2, -p.h/2, p.w, p.h); } catch(e) {}
+                ctx.restore();
+            }
+        }
+
+        for (let ft of floatingTexts) {
+            ctx.globalAlpha = ft.life;
+            ctx.fillStyle = '#ffff00';
+            ctx.font = '60px "Black Han Sans"';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'alphabetic';
+            ctx.shadowColor = '#ff0000';
+            ctx.shadowBlur = 15;
+            ctx.fillText(ft.text, ft.x, ft.y);
+            ctx.shadowBlur = 0; 
+        }
+        ctx.globalAlpha = 1.0;
+
+        ctx.restore();
+
+        if (gameState !== 'START') {
+            ctx.fillStyle = 'white';
+            ctx.font = '60px "Black Han Sans"';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'alphabetic';
+            ctx.shadowColor = 'black';
+            ctx.shadowBlur = 10;
+            ctx.lineWidth = 5;
+            
+            ctx.strokeText(score.toLocaleString() + "점", GAME_WIDTH / 2, 100);
+            ctx.fillText(score.toLocaleString() + "점", GAME_WIDTH / 2, 100);
+            
+            ctx.font = '30px "Black Han Sans"';
+            ctx.fillStyle = '#ffcc00';
+            ctx.strokeText("최고기록: " + highScore.toLocaleString() + "점", GAME_WIDTH / 2, 150);
+            ctx.fillText("최고기록: " + highScore.toLocaleString() + "점", GAME_WIDTH / 2, 150);
+            
+            if (starTimer > 0) {
+                ctx.fillStyle = `hsl(${(frame*20)%360}, 100%, 60%)`;
+                ctx.strokeText("광기 모드 MAX km/h !!!", GAME_WIDTH / 2, 190);
+                ctx.fillText("광기 모드 MAX km/h !!!", GAME_WIDTH / 2, 190);
+            } else {
+                ctx.fillStyle = '#00ff88';
+                ctx.strokeText("SPEED: " + Math.floor(gameSpeed*10) + "km/h", GAME_WIDTH / 2, 190);
+                ctx.fillText("SPEED: " + Math.floor(gameSpeed*10) + "km/h", GAME_WIDTH / 2, 190);
+            }
+            ctx.shadowBlur = 0; 
+        }
+
+        if (gameState === 'GAMEOVER') {
+            if(shakeTime > 20) {
+                ctx.fillStyle = 'rgba(255, 0, 0, 0.6)';
+                ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+            }
+            ctx.fillStyle = 'white';
+            ctx.font = '100px "Black Han Sans"';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'alphabetic';
+            ctx.fillText('개박살남 💀', GAME_WIDTH / 2, GAME_HEIGHT / 2 - 50);
+            
+            if (Math.floor(Date.now() / 200) % 2 === 0) {
+                ctx.fillStyle = '#00b3ff';
+                ctx.font = '50px "Black Han Sans"';
+                ctx.fillText('터치해서 다시하기!', GAME_WIDTH / 2, GAME_HEIGHT / 2 + 100);
+            }
+        }
+    }
+
+    function loop() {
+        update();
+        draw();
+        requestAnimationFrame(loop);
+    }
+
+    loop();
+</script>
+</body>
+</html>

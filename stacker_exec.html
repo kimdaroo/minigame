@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <title>3D 스택 빌더 - 도파민 에디션</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #111;
+            font-family: 'Impact', 'Segoe UI Black', sans-serif;
+            touch-action: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #mobile-wrapper {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            max-width: 480px;
+            max-height: 950px;
+            background-color: #2b1055;
+            overflow: hidden;
+            box-shadow: 0 0 50px rgba(255, 0, 128, 0.3);
+        }
+
+        @media (min-width: 481px) {
+            #mobile-wrapper {
+                height: 95vh;
+                border-radius: 30px;
+                border: 8px solid #222;
+            }
+        }
+
+        #game-container {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #score-display {
+            position: absolute;
+            top: 15%;
+            font-size: clamp(4rem, 15vw, 6rem);
+            color: #fff;
+            text-shadow: 0 0 10px #ff007f, 0 0 20px #ff007f, 0 0 40px #ff007f;
+            z-index: 10;
+            transition: transform 0.05s ease-out;
+            opacity: 0;
+            font-style: italic;
+        }
+
+        #high-score-container {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            text-align: right;
+            color: #00ffff;
+            text-shadow: 0 0 5px #00ffff, 0 0 10px #00ffff;
+            z-index: 10;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        #high-score-title {
+            font-size: 1rem;
+            letter-spacing: 2px;
+        }
+        #high-score-value {
+            font-size: 1.5rem;
+        }
+
+        #center-prompt {
+            position: absolute;
+            top: 40%; /* 텍스트를 살짝 올려서 하단 블록과 겹치지 않게 함 */
+            font-size: 2.5rem;
+            color: #fff;
+            text-shadow: 0 0 10px #00ff00, 0 0 20px #00ff00;
+            animation: pulse 0.5s infinite alternate;
+            text-align: center;
+            line-height: 1.2;
+            pointer-events: none;
+        }
+        .sub-prompt {
+            font-size: 1.2rem;
+            color: #aaa;
+            text-shadow: none;
+            margin-top: 10px;
+        }
+
+        @keyframes pulse {
+            from { transform: scale(1); opacity: 0.8; }
+            to { transform: scale(1.1); opacity: 1; }
+        }
+
+        /* 복구된 설정 화면 CSS (도파민 테마) */
+        .screen {
+            background: rgba(20, 10, 40, 0.9);
+            width: 90%;
+            max-width: 360px;
+            padding: 30px 20px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(255,0,128,0.4);
+            text-align: center;
+            pointer-events: auto;
+            backdrop-filter: blur(10px);
+            transition: opacity 0.3s;
+            box-sizing: border-box;
+            border: 2px solid #ff007f;
+            z-index: 20;
+        }
+        h1.title {
+            margin: 0 0 10px 0;
+            color: #fff;
+            font-size: clamp(2.2rem, 8vw, 3rem);
+            font-weight: 800;
+            line-height: 1.1;
+            text-shadow: 0 0 10px #ff007f, 0 0 20px #00ffff;
+            font-style: italic;
+        }
+        .screen p {
+            color: #ccc;
+            font-size: 1.1rem;
+            margin-bottom: 25px;
+            font-weight: 600;
+        }
+        .diff-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 25px;
+        }
+        .diff-btn {
+            background: rgba(255,255,255,0.1);
+            color: #ddd;
+            padding: 12px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            border-radius: 12px;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+            cursor: pointer;
+        }
+        .diff-btn.active {
+            background: linear-gradient(45deg, #ff007f, #7000ff);
+            color: white;
+            box-shadow: 0 4px 15px rgba(255, 0, 128, 0.5);
+            transform: scale(1.05);
+            border: 1px solid #ff007f;
+        }
+        .speed-container {
+            background: rgba(0, 0, 0, 0.4);
+            padding: 12px;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            color: #fff;
+            margin-top: -5px;
+            margin-bottom: 5px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .speed-container input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+            accent-color: #00ffff;
+        }
+        #start-btn {
+            background: linear-gradient(45deg, #00ff00, #00C9FF);
+            border: none;
+            color: #000;
+            padding: 15px 20px;
+            font-size: 1.4rem;
+            font-weight: 900;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 5px 20px rgba(0, 255, 0, 0.5);
+            width: 100%;
+            transition: transform 0.1s;
+        }
+        #start-btn:active {
+            transform: translateY(2px);
+        }
+        #settings-btn {
+            position: absolute;
+            bottom: 30px;
+            padding: 12px 25px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            border-radius: 30px;
+            font-size: 1rem;
+            font-weight: bold;
+            pointer-events: auto;
+            cursor: pointer;
+            z-index: 20;
+            backdrop-filter: blur(5px);
+            transition: all 0.2s;
+        }
+        #settings-btn:active {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(2px);
+        }
+
+        #combo-text {
+            position: absolute;
+            top: 35%;
+            font-size: clamp(2rem, 10vw, 3rem);
+            color: #FFD700;
+            text-shadow: 0 0 10px #FFA500, 0 0 20px #FF4500;
+            opacity: 0;
+            transform: scale(0.5);
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 10;
+            font-style: italic;
+        }
+
+        .hidden { display: none !important; }
+
+        #flash-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: white;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.1s;
+            z-index: 5;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+    <div id="mobile-wrapper">
+        <div id="game-container"></div>
+        <div id="flash-overlay"></div>
+        
+        <div id="ui-layer">
+            <div id="high-score-container">
+                <div id="high-score-title">BEST SCORE</div>
+                <div id="high-score-value">0</div>
+            </div>
+            
+            <div id="score-display">0</div>
+            <div id="combo-text">CRAZY!</div>
+            
+            <div id="center-prompt" class="hidden">
+                TAP TO START
+                <div class="sub-prompt">아무데나 터치하세요</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const GAME_SPEED_BASE = 0.12;
+        const GAME_SPEED_INC = 0.005;
+        const BOX_HEIGHT = 1;
+        const ORIGINAL_BOX_SIZE = 4;
+        const PERFECT_TOLERANCE = 0.2;
+
+        let scene, camera, renderer;
+        let stack = [];
+        let debris = []; 
+        let effects = []; 
+        let gameState = 'START'; 
+        let currentLayer = 0;
+        let blockSpeed = GAME_SPEED_BASE;
+        let comboCount = 0;
+        
+        let currentDifficulty = 'normal';
+        let targetSpeed = GAME_SPEED_BASE;
+        
+        let score = 0;
+        let displayScore = 0; 
+        let highScore = localStorage.getItem('dopamine_stack_high') || 0;
+        
+        let shakeIntensity = 0; 
+        
+        // 카메라 제어용 변수
+        let camHeightGlobal = 24; 
+        let cameraOffset = 0; 
+
+        const wrapper = document.getElementById('mobile-wrapper');
+        const scoreUI = document.getElementById('score-display');
+        const highScoreContainer = document.getElementById('high-score-container');
+        const highScoreUI = document.getElementById('high-score-value');
+        const promptUI = document.getElementById('center-prompt');
+        const comboUI = document.getElementById('combo-text');
+        const flashUI = document.getElementById('flash-overlay');
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.fog = new THREE.Fog(0x2b1055, 10, 50);
+
+            camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 100);
+            
+            // 카메라 기본 기준점 고정
+            camera.position.set(12, 12, 12);
+            camera.lookAt(0, 0, 0);
+
+            const width = wrapper.clientWidth;
+            const height = wrapper.clientHeight;
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(width, height);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.setClearColor(0x2b1055, 1);
+            document.getElementById('game-container').appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+            dirLight.position.set(5, 15, 5);
+            dirLight.castShadow = true;
+            dirLight.shadow.camera.left = -10;
+            dirLight.shadow.camera.right = 10;
+            dirLight.shadow.camera.top = 10;
+            dirLight.shadow.camera.bottom = -10;
+            scene.add(dirLight);
+
+            const planeGeometry = new THREE.PlaneGeometry(100, 100);
+            const planeMaterial = new THREE.ShadowMaterial({ opacity: 0.3 });
+            const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+            plane.rotation.x = -Math.PI / 2;
+            plane.position.y = -50;
+            scene.add(plane);
+
+            updateCameraSize(width, height);
+            window.addEventListener('resize', onWindowResize, false);
+            
+            wrapper.addEventListener('mousedown', (e) => {
+                onInteract(e);
+            });
+            wrapper.addEventListener('touchstart', (e) => {
+                e.preventDefault(); 
+                if(e.touches.length > 0) onInteract(e);
+            }, { passive: false });
+
+            highScoreUI.innerText = formatNumber(highScore);
+            highScoreContainer.style.opacity = "1";
+
+            showStartPrompt();
+            renderer.setAnimationLoop(animate);
+        }
+
+        function formatNumber(num) {
+            return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        }
+
+        function generateColor(layer) {
+            return new THREE.Color(`hsl(${(layer * 25) % 360}, 100%, 55%)`);
+        }
+
+        function createBox(x, y, z, width, height, depth, color) {
+            const geometry = new THREE.BoxGeometry(width, height, depth);
+            const material = new THREE.MeshLambertMaterial({ color: color });
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.set(x, y, z);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            scene.add(mesh);
+            return mesh;
+        }
+
+        function showStartPrompt() {
+            gameState = 'START';
+            promptUI.innerHTML = `TAP TO START<br><div class="sub-prompt">아무데나 터치하세요</div>`;
+            promptUI.style.color = "#fff";
+            promptUI.style.textShadow = "0 0 10px #00ff00, 0 0 20px #00ff00";
+            promptUI.classList.remove('hidden');
+            scoreUI.style.opacity = "0";
+            resetScene();
+        }
+
+        function resetScene() {
+            stack.forEach(block => scene.remove(block));
+            debris.forEach(d => scene.remove(d.mesh));
+            effects.forEach(eff => scene.remove(eff.mesh));
+            stack = [];
+            debris = [];
+            effects = [];
+
+            const baseBlock = createBox(0, -49.5, 0, ORIGINAL_BOX_SIZE, 100, ORIGINAL_BOX_SIZE, generateColor(0));
+            stack.push(baseBlock);
+
+            currentLayer = 0;
+            score = 0;
+            displayScore = 0;
+            scoreUI.innerText = "0";
+            comboCount = 0;
+            blockSpeed = GAME_SPEED_BASE;
+            shakeIntensity = 0;
+            
+            // 화면 비율에 맞춰 카메라 시작 높이를 맨 아래로 강제 고정
+            cameraOffset = (camHeightGlobal / 2) - 2;
+        }
+
+        function startGame() {
+            gameState = 'PLAYING';
+            promptUI.classList.add('hidden');
+            scoreUI.style.opacity = "1";
+            
+            blockSpeed = GAME_SPEED_BASE; // 보통 난이도 기준
+            
+            resetScene();
+            addLayer();
+        }
+
+        function explodeBlock(x, y, z, width, depth, color, isMassive = false) {
+            const count = isMassive ? 15 : 6; 
+            for(let i=0; i<count; i++) {
+                const w = width * (0.2 + Math.random() * 0.4);
+                const d = depth * (0.2 + Math.random() * 0.4);
+                
+                const px = x + (Math.random() - 0.5) * width;
+                const py = y + (Math.random() - 0.5) * BOX_HEIGHT;
+                const pz = z + (Math.random() - 0.5) * depth;
+
+                const mesh = createBox(px, py, pz, w, BOX_HEIGHT * 0.5, d, color);
+                
+                debris.push({
+                    mesh: mesh,
+                    vx: (Math.random() - 0.5) * 0.4,
+                    vy: Math.random() * 0.4 + 0.2, 
+                    vz: (Math.random() - 0.5) * 0.4,
+                    rx: Math.random() * 0.3,
+                    rz: Math.random() * 0.3
+                });
+            }
+        }
+
+        // 콤보 달성 시 쏟아지는 화려한 파티클 연출
+        function emitComboParticles(x, y, z, currentCombo) {
+            const count = Math.min(currentCombo * 8, 40); // 콤보가 높을수록 파편 수 증가
+            for(let i=0; i<count; i++) {
+                const size = 0.3 + Math.random() * 0.4;
+                const color = new THREE.Color(`hsl(${Math.random() * 360}, 100%, 65%)`); // 무작위 네온 컬러
+                const mesh = createBox(x, y, z, size, size, size, color);
+                
+                debris.push({
+                    mesh: mesh,
+                    vx: (Math.random() - 0.5) * 1.2, // 더 넓게 퍼짐
+                    vy: Math.random() * 0.8 + 0.5,   // 더 높이 솟구침
+                    vz: (Math.random() - 0.5) * 1.2,
+                    rx: Math.random() * 0.5,
+                    rz: Math.random() * 0.5
+                });
+            }
+        }
+
+        function createPerfectEffect(block, currentCombo) {
+            const geometry = new THREE.PlaneGeometry(block.geometry.parameters.width * 2, block.geometry.parameters.depth * 2);
+            const material = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 });
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.rotation.x = -Math.PI / 2;
+            mesh.position.set(block.position.x, block.position.y + BOX_HEIGHT / 2 + 0.05, block.position.z);
+            scene.add(mesh);
+            effects.push({ mesh: mesh, scale: 1, opacity: 0.9, scaleSpeed: 0.1 });
+
+            // 콤보가 쌓일수록 화면 플래시 색상과 강도가 변함
+            if (currentCombo >= 2) {
+                // 추가 네온 링 이펙트
+                const color = new THREE.Color(`hsl(${Math.random() * 360}, 100%, 60%)`);
+                const mesh2 = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.8 }));
+                mesh2.rotation.x = -Math.PI / 2;
+                mesh2.position.set(block.position.x, block.position.y + BOX_HEIGHT / 2 + 0.02, block.position.z);
+                scene.add(mesh2);
+                effects.push({ mesh: mesh2, scale: 1, opacity: 0.8, scaleSpeed: 0.25 }); // 더 빨리 퍼짐
+                
+                flashUI.style.background = `hsl(${Math.random() * 360}, 100%, 70%)`;
+                flashUI.style.opacity = "0.6";
+            } else {
+                flashUI.style.background = "white";
+                flashUI.style.opacity = "0.5";
+            }
+
+            setTimeout(() => { flashUI.style.opacity = "0"; }, 50);
+            
+            // 콤보 수에 비례하여 화면 흔들림 증가 (도파민 연출)
+            shakeIntensity = Math.min(0.2 + (currentCombo * 0.15), 1.0);
+        }
+
+        function addLayer() {
+            currentLayer++;
+            const topBlock = stack[stack.length - 1];
+            
+            const width = topBlock.geometry.parameters.width;
+            const depth = topBlock.geometry.parameters.depth;
+
+            const direction = currentLayer % 2 === 0 ? 'x' : 'z';
+            // y 위치 +0.5를 제거하여 1층과 베이스 블록 사이의 빈공간(그림자 갭) 문제 해결
+            const y = currentLayer * BOX_HEIGHT; 
+            
+            let x = topBlock.position.x;
+            let z = topBlock.position.z;
+
+            if (direction === 'x') x = -15; else z = -15;
+
+            const newBlock = createBox(x, y, z, width, BOX_HEIGHT, depth, generateColor(currentLayer));
+            newBlock.direction = direction;
+            newBlock.movingDir = 1;
+
+            stack.push(newBlock);
+            
+            // 난이도별 속도 로직 복구
+            if (currentDifficulty === 'easy') {
+                blockSpeed = easySpeed; 
+            } else if (currentDifficulty === 'normal') {
+                blockSpeed = GAME_SPEED_BASE + (currentLayer * GAME_SPEED_INC); 
+            } else if (currentDifficulty === 'hard') {
+                blockSpeed = 0.05 + Math.random() * 0.1; 
+            } else if (currentDifficulty === 'veryHard') {
+                if (currentLayer === 1) blockSpeed = GAME_SPEED_BASE;
+                targetSpeed = 0.04 + Math.random() * 0.14; 
+            }
+            
+            // 도파민 요소: 보통 이하 난이도에서는 무작위 급가속(억까) 제외
+            if((currentDifficulty === 'hard' || currentDifficulty === 'veryHard') && Math.random() < 0.1) {
+                blockSpeed *= 1.8;
+            }
+        }
+
+        function splitBlock() {
+            const activeBlock = stack.pop();
+            const prevBlock = stack[stack.length - 1];
+            const direction = activeBlock.direction;
+            
+            let delta = activeBlock.position[direction] - prevBlock.position[direction];
+            
+            if (Math.abs(delta) < PERFECT_TOLERANCE) {
+                delta = 0;
+                activeBlock.position[direction] = prevBlock.position[direction];
+                stack.push(activeBlock);
+                
+                comboCount++;
+                let gain = Math.floor(Math.random() * 50000) + 100000; 
+                gain *= comboCount; 
+                score += gain;
+
+                showComboText(comboCount);
+                createPerfectEffect(activeBlock, comboCount);
+                
+                // 콤보가 2 이상일 때 파티클 폭발 연출 추가
+                if (comboCount > 1) {
+                    emitComboParticles(activeBlock.position.x, activeBlock.position.y, activeBlock.position.z, comboCount);
+                }
+                
+                return true; 
+            }
+
+            comboCount = 0; 
+            const size = direction === 'x' ? activeBlock.geometry.parameters.width : activeBlock.geometry.parameters.depth;
+            const overhangSize = Math.abs(delta);
+            const overlapSize = size - overhangSize;
+
+            if (overlapSize > 0) {
+                score += Math.floor(Math.random() * 10000) + 5000; 
+
+                const newWidth = direction === 'x' ? overlapSize : activeBlock.geometry.parameters.width;
+                const newDepth = direction === 'z' ? overlapSize : activeBlock.geometry.parameters.depth;
+                
+                const newPos = activeBlock.position[direction] - (delta / 2);
+                let x = activeBlock.position.x;
+                let z = activeBlock.position.z;
+                if (direction === 'x') x = newPos; else z = newPos;
+
+                const placedBlock = createBox(x, activeBlock.position.y, z, newWidth, BOX_HEIGHT, newDepth, activeBlock.material.color);
+                stack.push(placedBlock);
+
+                const overhangPos = activeBlock.position[direction] + (overlapSize / 2 * Math.sign(delta));
+                let ox = activeBlock.position.x;
+                let oz = activeBlock.position.z;
+                if (direction === 'x') ox = overhangPos; else oz = overhangPos;
+
+                const oWidth = direction === 'x' ? overhangSize : activeBlock.geometry.parameters.width;
+                const oDepth = direction === 'z' ? overhangSize : activeBlock.geometry.parameters.depth;
+                
+                explodeBlock(ox, activeBlock.position.y, oz, oWidth, oDepth, activeBlock.material.color, false);
+                
+                scene.remove(activeBlock);
+                shakeIntensity = 0.1;
+                return true;
+            } else {
+                shakeIntensity = 1.0; 
+                explodeBlock(activeBlock.position.x, activeBlock.position.y, activeBlock.position.z, 
+                            activeBlock.geometry.parameters.width, activeBlock.geometry.parameters.depth, 
+                            activeBlock.material.color, true);
+                scene.remove(activeBlock);
+                return false;
+            }
+        }
+
+        function onInteract(e) {
+            if (gameState === 'START') {
+                startGame();
+            } else if (gameState === 'PLAYING') {
+                const success = splitBlock();
+                
+                if (success) {
+                    scoreAnim();
+                    addLayer();
+                } else {
+                    gameState = 'GAMEOVER';
+                    if (score > highScore) {
+                        highScore = score;
+                        localStorage.setItem('dopamine_stack_high', highScore);
+                        highScoreUI.innerText = formatNumber(highScore);
+                    }
+
+                    promptUI.innerHTML = `WASTED!<br><span class="sub-prompt">터치해서 복수하기</span>`;
+                    promptUI.style.color = "#ff0000";
+                    promptUI.style.textShadow = "0 0 20px #ff0000";
+                    promptUI.classList.remove('hidden');
+                }
+            } else if (gameState === 'GAMEOVER') {
+                // 게임오버 상태에서 터치 시 바로 시작
+                promptUI.classList.add('hidden');
+                startGame();
+            }
+        }
+
+        function scoreAnim() {
+            scoreUI.style.transform = `scale(${1.2 + Math.random() * 0.5}) rotate(${(Math.random() - 0.5) * 10}deg)`;
+            setTimeout(() => {
+                scoreUI.style.transform = 'scale(1) rotate(0deg)';
+            }, 50);
+        }
+
+        function showComboText(count) {
+            let messages = ["NICE!", "GREAT!", "CRAZY!", "INSANE!", "GODLIKE!!", "DOPAMINE!!"];
+            let idx = Math.min(count - 1, messages.length - 1);
+            
+            comboUI.innerText = `${messages[idx]} x${count}`;
+            comboUI.style.color = `hsl(${Math.random() * 360}, 100%, 60%)`; 
+            comboUI.style.opacity = "1";
+            comboUI.style.transform = `scale(${1 + (count * 0.1)}) translateY(0)`;
+            
+            setTimeout(() => {
+                comboUI.style.opacity = "0";
+                comboUI.style.transform = "scale(0.5) translateY(20px)";
+            }, 600);
+        }
+
+        function updateCameraSize(width, height) {
+            const aspect = width / height;
+            const targetWidth = 12; 
+            
+            let camWidth = targetWidth;
+            let camHeight = targetWidth / aspect;
+            
+            if (aspect > 1) {
+                camHeight = 12;
+                camWidth = camHeight * aspect;
+            }
+            
+            // 전역 변수에 현재 카메라 높이 저장 (오프셋 계산용)
+            camHeightGlobal = camHeight;
+
+            camera.left = -camWidth / 2;
+            camera.right = camWidth / 2;
+            camera.top = camHeight / 2;
+            camera.bottom = -camHeight / 2;
+            camera.updateProjectionMatrix();
+        }
+
+        function onWindowResize() {
+            const width = wrapper.clientWidth;
+            const height = wrapper.clientHeight;
+            updateCameraSize(width, height);
+            renderer.setSize(width, height);
+        }
+
+        function animate() {
+            if (displayScore < score) {
+                const diff = score - displayScore;
+                displayScore += Math.ceil(diff * 0.2); 
+                scoreUI.innerText = formatNumber(displayScore);
+            }
+
+            // [핵심 변경] 카메라 목표 높이 연산
+            // 1. 최소한으로 유지할 오프셋 (블록이 화면 하단에 위치하도록 설정)
+            const baseCameraOffset = (camHeightGlobal / 2) - 2; 
+            
+            // 2. 현재 쌓인 층의 위치 (화면 중앙 기준 약간 아래로 맞춤)
+            const activeBlockCenterY = (currentLayer * BOX_HEIGHT) + 2; 
+            
+            // 3. 탑이 어느 정도 높아지기 전까지는 카메라는 맨 아래를 고정
+            const targetOffset = Math.max(baseCameraOffset, activeBlockCenterY);
+
+            if (gameState === 'PLAYING') {
+                const activeBlock = stack[stack.length - 1];
+                const limit = 7;
+
+                if (activeBlock && activeBlock.direction) {
+                    // 매우 어려움 난이도 실시간 변속 복구
+                    if (currentDifficulty === 'veryHard') {
+                        if (Math.random() < 0.03) { 
+                            targetSpeed = 0.03 + Math.random() * 0.16; 
+                        }
+                        blockSpeed += (targetSpeed - blockSpeed) * 0.05;
+                    }
+                    
+                    activeBlock.position[activeBlock.direction] += blockSpeed * activeBlock.movingDir;
+                    
+                    if (activeBlock.position[activeBlock.direction] > limit || activeBlock.position[activeBlock.direction] < -limit) {
+                        activeBlock.movingDir *= -1;
+                        activeBlock.position[activeBlock.direction] = limit * Math.sign(activeBlock.position[activeBlock.direction]);
+                    }
+                }
+
+                // 부드러운 카메라 상승 (패닝)
+                cameraOffset += (targetOffset - cameraOffset) * 0.1;
+            } else if (gameState === 'START') {
+                // 화면 크기가 변하더라도 시작 전엔 얌전히 바닥 뷰 유지
+                cameraOffset += (baseCameraOffset - cameraOffset) * 0.1;
+            }
+
+            let shakeX = 0;
+            let shakeZ = 0;
+            if (shakeIntensity > 0) {
+                shakeX = (Math.random() - 0.5) * shakeIntensity;
+                shakeZ = (Math.random() - 0.5) * shakeIntensity;
+                shakeIntensity *= 0.85; 
+                if (shakeIntensity < 0.01) shakeIntensity = 0;
+            }
+
+            // 카메라 위치 적용 (항상 12 기준에서 오프셋만큼만 올려서 각도 유지)
+            camera.position.set(12 + shakeX, 12 + cameraOffset, 12 + shakeZ);
+
+            for (let i = 0; i < debris.length; i++) {
+                const item = debris[i];
+                item.vy -= 0.02; 
+                item.mesh.position.x += item.vx;
+                item.mesh.position.y += item.vy;
+                item.mesh.position.z += item.vz;
+                item.mesh.rotation.x += item.rx;
+                item.mesh.rotation.z += item.rz;
+
+                if (item.mesh.position.y < (12 + cameraOffset) - 20) {
+                    scene.remove(item.mesh);
+                    debris.splice(i, 1);
+                    i--;
+                }
+            }
+
+            for (let i = 0; i < effects.length; i++) {
+                let eff = effects[i];
+                let spd = eff.scaleSpeed || 0.1;
+                eff.scale += spd; 
+                eff.opacity -= 0.05; 
+                
+                eff.mesh.scale.set(eff.scale, eff.scale, 1);
+                eff.mesh.material.opacity = eff.opacity;
+                
+                if (eff.opacity <= 0) {
+                    scene.remove(eff.mesh);
+                    effects.splice(i, 1);
+                    i--;
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        init();
+    </script>
+</body>
+</html>
