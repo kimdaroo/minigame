@@ -1,524 +1,321 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>모바일 UGC 앱 데모</title>
-    
-    <!-- Tailwind CSS (CDN) -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- React & ReactDOM (CDN) -->
-    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
-    
-    <!-- Babel (브라우저에서 JSX를 컴파일하기 위함) -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>OZ SPACE - 영상 생성 모듈</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- React & ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  
+  <!-- Babel -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
 
-    <style>
-        /* 커스텀 스크롤바 숨기기 스타일 */
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        body { margin: 0; padding: 0; background-color: #000; }
-        
-        /* 모달 등장 애니메이션 */
-        @keyframes slideUp {
-            from { transform: translateY(100%); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-        .modal-animate {
-            animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
-    </style>
+  <style>
+    /* 모바일 네이티브 스크롤 숨김 및 스냅 */
+    .scrollbar-hide::-webkit-scrollbar { display: none; }
+    .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    
+    body {
+      background-color: #000;
+      color: #fff;
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior-y: none;
+    }
+  </style>
 </head>
-<body>
-    <!-- React 앱이 렌더링될 최상위 요소 -->
-    <div id="root"></div>
+<body class="font-sans antialiased text-white">
+  <!-- 부모 앱에서 띄우는 웹뷰/모달 레이아웃을 가정 -->
+  <div id="root" class="w-full max-w-md mx-auto h-[100dvh] bg-[#09090b] relative overflow-hidden flex flex-col shadow-2xl"></div>
 
-    <!-- type="text/babel" 을 지정하여 Babel이 컴파일하도록 함 -->
-    <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
 
-        // --- [Icons Mocking] ---
-        const Home = (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
-        const Clapperboard = (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.4-2.2 1.5-2.5l13.5-4c1.1-.3 2.2.4 2.5 1.5z"/><path d="m6.2 5.3 3.1 3.9"/><path d="m12.4 3.4 3.1 4"/><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>;
-        const PlusSquare = (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><line x1="12" x2="12" y1="8" y2="16"/><line x1="8" x2="16" y1="12" y2="12"/></svg>;
-        const MessageCircle = (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>;
-        const Settings = (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>;
-        const Heart = (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={p.className?.includes('fill') ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>;
-        const MessageSquare = (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={p.className?.includes('fill') ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>;
-        const Repeat = (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>;
-        const Gamepad2 = (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><line x1="6" x2="10" y1="12" y2="12"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="15" x2="15.01" y1="13" y2="13"/><line x1="18" x2="18.01" y1="11" y2="11"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"/></svg>;
-        const MoreVertical = (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>;
-        const ChevronLeft = (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><path d="m15 18-6-6 6-6"/></svg>;
-        const Send = (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>;
-        const Search = (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>;
-        const Bell = (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>;
-        const UserCircle = (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><circle cx="12" cy="12" r="10"/><circle cx="12" cy="10" r="3"/><path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"/></svg>;
+    const DUMMY_IMG = "https://lh3.googleusercontent.com/d/1M_DVMkQECsQ6jV-f86hyBuSnLU56rD22";
 
-        // --- [Mock Data] ---
-        const FEED_VIDEOS = [
-        {
-            id: 1,
-            author: '@dance_machine',
-            title: '요즘 유행하는 챌린지 춤 춰봤습니다 🕺✨',
-            song: 'Original Sound - dance_machine',
-            likes: '12.4K',
-            comments: '342',
-            isGame: false,
-            gradient: 'from-purple-500 to-indigo-600',
-            emoji: '🕺'
-        },
-        {
-            id: 2,
-            author: '@gamer_pro',
-            title: '나만의 미니게임 완성! 한번 플레이 해보세요 🎮',
-            song: 'Retro 8-bit Sound',
-            likes: '8.9K',
-            comments: '120',
-            isGame: true,
-            gradient: 'from-green-500 to-emerald-800',
-            emoji: '⚔️',
-            // [GitHub 권장] 타이틀 이미지도 깃허브에 같이 올리셨다면 './title_image.png' 처럼 적으시면 됩니다.
-            // 일단은 기존 구글 드라이브 이미지 링크를 유지해두었습니다.
-            bgImage: 'https://lh3.googleusercontent.com/d/1kmf7qkwOfsbDK54EjMhDjy1qqOwqHnUs',
-            
-            // [GitHub 전용 연결 방식] 
-            // 구글 드라이브 우회 코드를 지우고, 깃허브에 같이 올릴 html 파일명만 적어주면 끝입니다!
-            repeatUrl: './repeat_game.html'
-        },
-        {
-            id: 3,
-            author: '@cat_lover',
-            title: '우리집 고양이 츄르 먹방 🐾',
-            song: 'Cute Cat Song',
-            likes: '45.1K',
-            comments: '1.2K',
-            isGame: false,
-            gradient: 'from-orange-400 to-red-500',
-            emoji: '🐈'
-        },
-        {
-            id: 4,
-            author: '@meme_creator',
-            title: '월요일 아침 직장인 공감 ㅋㅋㅋ',
-            song: 'Sad Violin',
-            likes: '99.9K',
-            comments: '8.4K',
-            isGame: false,
-            gradient: 'from-cyan-500 to-blue-600',
-            emoji: '🏢'
+    // --- Lucide 아이콘 래퍼 ---
+    const IconWrapper = ({ name, size = 24, className = '', fill = 'none' }) => {
+      const containerRef = useRef(null);
+      useEffect(() => {
+        if (containerRef.current) {
+          containerRef.current.innerHTML = `<i data-lucide="${name}"></i>`;
+          lucide.createIcons({ root: containerRef.current });
+          const svg = containerRef.current.querySelector('svg');
+          if (svg) {
+             svg.style.width = typeof size === 'number' ? `${size}px` : size;
+             svg.style.height = typeof size === 'number' ? `${size}px` : size;
+             if (className) svg.setAttribute('class', `lucide lucide-${name} ${className}`);
+             if (fill === 'currentColor') svg.classList.add('fill-current');
+          }
         }
-        ];
+      }, [name, size, className, fill]);
+      return <span ref={containerRef} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}></span>;
+    };
 
-        const HOME_POSTS = [
-        { id: 1, author: '제니', avatar: 'J', content: '오늘 날씨 너무 좋다 ☀️ 다들 뭐하시나요?', likes: 120, time: '2시간 전' },
-        { id: 2, author: '민수', avatar: 'M', content: '새로 산 키보드 타건음 ASMR 들려드림 ⌨️', likes: 45, time: '5시간 전' },
-        { id: 3, author: '지수', avatar: 'S', content: '이번 주말에 부산 놀러가요! 맛집 추천 받습니다', likes: 320, time: '하루 전' },
-        ];
+    // 모듈에서 사용하는 필수 아이콘만 남김
+    const Plus = (p) => <IconWrapper name="plus" {...p} />;
+    const Play = (p) => <IconWrapper name="play" {...p} />;
+    const Sparkles = (p) => <IconWrapper name="sparkles" {...p} />;
+    const ChevronLeft = (p) => <IconWrapper name="chevron-left" {...p} />;
+    const Loader2 = (p) => <IconWrapper name="loader-2" {...p} />;
+    const Wand2 = (p) => <IconWrapper name="wand-2" {...p} />;
 
-        const STORIES = ['내 스토리', '지수', '민수', '태형', '수아', '정국'];
 
-        const DM_LIST = [
-        { id: 1, name: '지수', lastMessage: '이번 주말에 시간 돼?', time: '오후 2:30', unread: 2 },
-        { id: 2, name: '민수', lastMessage: 'ㅋㅋㅋㅋ 그 영상 봤어?', time: '오전 11:15', unread: 0 },
-        { id: 3, name: '크리에이터 모임', lastMessage: '다들 내일 7시에 봬요~', time: '어제', unread: 5 },
-        ];
+    // --- 핵심 모듈: 영상 생성 에디터 뷰 ---
+    // 외부(부모 앱)에서 props로 onBack(닫기), onComplete(완료 후 보관함 이동 등)를 주입받아 사용합니다.
+    const EditorModule = ({ onBack, onComplete }) => {
+      // 입력 단계 상태
+      const [scenario, setScenario] = useState('');
+      const [t2vPrompt, setT2vPrompt] = useState('');
+      
+      // 흐름 제어 상태: input -> analyzing(프롬프트 분석) -> generating(영상 렌더링) -> result(결과/바이브) -> saving(내보내기)
+      const [phase, setPhase] = useState('input');
+      const [optimizedPrompt, setOptimizedPrompt] = useState('');
+      
+      // 바이브(필터/스타일) 상태
+      const [currentVibe, setCurrentVibe] = useState('');
+      const [selectedVibe, setSelectedVibe] = useState(''); 
+      const vibes = ['🔥 마라맛 액션', '✨ 몽환적 감성', '🤡 B급 밈', '🎬 사이버펑크'];
 
-        // --- [Components] ---
+      // 트렌드 무작위 프롬프트 더미 데이터
+      const TRENDING_PROMPTS = [
+        "사이버펑크 네온사인 거리에서 화려하게 춤추는 고양이",
+        "우주 정거장 창문 너머로 보이는 경이로운 지구의 일출",
+        "중세 판타지 마을의 평화로운 아침 장터 풍경",
+        "초고속 카메라로 촬영한 물방울이 터지는 환상적인 순간"
+      ];
 
-        const FeedScreen = ({ showUI, toggleUI, openIframe }) => {
-        const [likedVideos, setLikedVideos] = useState({});
-        const [clickedButtons, setClickedButtons] = useState({});
-
-        // 좋아요 버튼 애니메이션 및 상태 토글
-        const handleLike = (e, id) => {
-            e.stopPropagation(); // 배경 클릭(UI 토글) 이벤트 방지
-            setLikedVideos(prev => ({ ...prev, [id]: !prev[id] }));
-            triggerAnim(id, 'like');
-        };
-
-        // 일반 버튼 애니메이션 및 모달 연결
-        const handleAction = (e, id, action, url) => {
-            e.stopPropagation(); // 배경 클릭 이벤트 방지
-            triggerAnim(id, action);
-            
-            // '따라하기' 버튼을 눌렀고, url이 존재하는 경우 모달 띄우기
-            if (action === 'repeat' && url) {
-                // 버튼 눌림 애니메이션을 잠깐 보여준 뒤 모달 띄우기
-                setTimeout(() => {
-                    openIframe(url);
-                }, 200);
-            }
-        };
-
-        // 짧은 강조 애니메이션 트리거
-        const triggerAnim = (id, action) => {
-            const key = `${id}-${action}`;
-            setClickedButtons(prev => ({ ...prev, [key]: true }));
-            setTimeout(() => {
-            setClickedButtons(prev => ({ ...prev, [key]: false }));
-            }, 200);
-        };
-
-        return (
-            <div className="h-full w-full bg-black relative snap-y snap-mandatory overflow-y-scroll no-scrollbar">
-            {FEED_VIDEOS.map((video) => (
-                <div 
-                key={video.id} 
-                className="h-full w-full snap-start relative flex items-center justify-center cursor-pointer"
-                onClick={toggleUI}
-                >
-                
-                {/* 배경 렌더링 (이미지 URL이 있으면 이미지 우선, 없으면 그라데이션) */}
-                {video.bgImage ? (
-                    <div className="absolute inset-0 w-full h-full">
-                        <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${video.bgImage})` }} />
-                        {/* 텍스트 가독성을 위한 하단 그라데이션 오버레이 */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent pointer-events-none" />
-                    </div>
-                ) : (
-                    <div className={`absolute inset-0 bg-gradient-to-br ${video.gradient} flex items-center justify-center`}>
-                        <span className="text-9xl animate-bounce">{video.emoji}</span>
-                    </div>
-                )}
-
-                <div className={`absolute inset-0 transition-opacity duration-300 ${showUI ? 'opacity-100' : 'opacity-0'} pointer-events-none`}>
-                    <div className="absolute right-4 bottom-24 flex flex-col gap-6 items-center pointer-events-auto">
-                    
-                    <button 
-                        onClick={(e) => handleLike(e, video.id)}
-                        className={`flex flex-col items-center gap-1 transition-transform duration-200 ${clickedButtons[`${video.id}-like`] ? 'scale-125' : 'hover:scale-110 active:scale-95'}`}
-                    >
-                        <div className="p-2 bg-black/40 rounded-full">
-                        <Heart className={`w-7 h-7 transition-colors duration-200 ${likedVideos[video.id] ? 'text-red-500 fill-red-500' : 'text-white'}`} />
-                        </div>
-                        <span className="text-white text-xs font-semibold drop-shadow-md">{video.likes}</span>
-                    </button>
-
-                    <button 
-                        onClick={(e) => handleAction(e, video.id, 'comment')}
-                        className={`flex flex-col items-center gap-1 transition-transform duration-200 ${clickedButtons[`${video.id}-comment`] ? 'scale-125' : 'hover:scale-110 active:scale-95'}`}
-                    >
-                        <div className="p-2 bg-black/40 rounded-full">
-                        <MessageSquare className={`w-7 h-7 transition-colors duration-200 ${clickedButtons[`${video.id}-comment`] ? 'text-blue-400 fill-blue-400' : 'text-white'}`} />
-                        </div>
-                        <span className="text-white text-xs font-semibold drop-shadow-md">{video.comments}</span>
-                    </button>
-
-                    <button 
-                        onClick={(e) => handleAction(e, video.id, 'repeat', video.repeatUrl)}
-                        className={`flex flex-col items-center gap-1 transition-transform duration-200 ${clickedButtons[`${video.id}-repeat`] ? 'scale-125' : 'hover:scale-110 active:scale-95'}`}
-                    >
-                        <div className="p-2 bg-black/40 rounded-full">
-                        <Repeat className={`w-7 h-7 transition-colors duration-200 ${clickedButtons[`${video.id}-repeat`] ? 'text-green-400' : 'text-white'}`} />
-                        </div>
-                        <span className="text-white text-xs font-semibold drop-shadow-md">따라하기</span>
-                    </button>
-
-                    {video.isGame && (
-                        <button 
-                        onClick={(e) => handleAction(e, video.id, 'game')}
-                        className={`flex flex-col items-center gap-1 transition-transform duration-200 ${clickedButtons[`${video.id}-game`] ? 'scale-125' : 'hover:scale-110 active:scale-95'}`}
-                        >
-                        <div className="p-2 bg-blue-500 rounded-full animate-pulse shadow-[0_0_15px_rgba(59,130,246,0.5)]">
-                            <Gamepad2 className="w-7 h-7 text-white" />
-                        </div>
-                        <span className="text-blue-400 text-xs font-bold drop-shadow-md">플레이</span>
-                        </button>
-                    )}
-
-                    <button 
-                        onClick={(e) => handleAction(e, video.id, 'more')}
-                        className={`flex flex-col items-center gap-1 transition-transform duration-200 ${clickedButtons[`${video.id}-more`] ? 'scale-125' : 'hover:scale-110 active:scale-95'}`}
-                    >
-                        <div className="p-2 bg-black/40 rounded-full">
-                        <MoreVertical className="w-7 h-7 text-white" />
-                        </div>
-                    </button>
-
-                    </div>
-
-                    <div className="absolute left-4 bottom-20 pr-20 pointer-events-auto">
-                    <h3 className="text-white font-bold text-lg mb-1 drop-shadow-md">{video.author}</h3>
-                    <p className="text-white text-sm mb-2 drop-shadow-md line-clamp-2">{video.title}</p>
-                    <div className="flex items-center gap-2 text-white/80 text-xs bg-black/30 w-max px-2 py-1 rounded-full backdrop-blur-sm">
-                        <Clapperboard className="w-3 h-3" />
-                        <span>{video.song}</span>
-                    </div>
-                    </div>
-                </div>
-                </div>
-            ))}
-            </div>
-        );
-        };
-
-        const HomeScreen = () => (
-        <div className="h-full w-full bg-gray-50 text-black flex flex-col">
-            <div className="flex justify-between items-center p-4 bg-white border-b sticky top-0 z-10">
-            <h1 className="text-xl font-bold">홈</h1>
-            <div className="flex gap-4">
-                <Bell className="w-6 h-6" />
-                <Search className="w-6 h-6" />
-            </div>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto pb-20 no-scrollbar">
-            <div className="flex gap-4 p-4 overflow-x-auto border-b bg-white no-scrollbar">
-                {STORIES.map((name, i) => (
-                <div key={i} className="flex flex-col items-center gap-1 min-w-[64px]">
-                    <div className={`w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold text-white
-                    ${i === 0 ? 'bg-gray-300' : 'bg-gradient-to-tr from-pink-500 to-orange-400 p-[2px]'}`}>
-                    {i !== 0 ? (
-                        <div className="w-full h-full bg-white rounded-full flex items-center justify-center text-black border-2 border-white">
-                        {name[0]}
-                        </div>
-                    ) : (
-                        <PlusSquare className="w-6 h-6 text-gray-600" />
-                    )}
-                    </div>
-                    <span className="text-xs">{name}</span>
-                </div>
-                ))}
-            </div>
-
-            <div className="flex flex-col gap-2 bg-gray-100">
-                {HOME_POSTS.map(post => (
-                <div key={post.id} className="bg-white p-4">
-                    <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center font-bold text-indigo-600">
-                        {post.avatar}
-                    </div>
-                    <div>
-                        <p className="font-bold text-sm">{post.author}</p>
-                        <p className="text-xs text-gray-500">{post.time}</p>
-                    </div>
-                    </div>
-                    <div className="w-full h-64 bg-gray-200 rounded-lg mb-3 flex items-center justify-center text-gray-400">
-                    [ 이미지 / 동영상 영역 ]
-                    </div>
-                    <p className="text-sm mb-3">{post.content}</p>
-                    <div className="flex gap-4 text-gray-600">
-                    <button className="flex items-center gap-1 text-sm font-medium"><Heart className="w-5 h-5"/> {post.likes}</button>
-                    <button className="flex items-center gap-1 text-sm font-medium"><MessageSquare className="w-5 h-5"/> 댓글</button>
-                    </div>
-                </div>
-                ))}
-            </div>
-            </div>
-        </div>
-        );
-
-        const DMScreen = () => {
-        const [activeChat, setActiveChat] = useState(null);
-
-        if (activeChat) {
-            return (
-            <div className="h-full w-full bg-white flex flex-col">
-                <div className="flex items-center gap-3 p-4 border-b">
-                <button onClick={() => setActiveChat(null)}><ChevronLeft className="w-6 h-6" /></button>
-                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center font-bold text-blue-600">
-                    {activeChat.name[0]}
-                </div>
-                <h2 className="font-bold">{activeChat.name}</h2>
-                </div>
-                <div className="flex-1 p-4 flex flex-col justify-end bg-gray-50">
-                <div className="bg-white p-3 rounded-2xl rounded-tl-none self-start shadow-sm mb-4 max-w-[70%]">
-                    {activeChat.lastMessage}
-                </div>
-                </div>
-                <div className="p-4 border-t flex gap-2 items-center bg-white pb-6">
-                <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center"><PlusSquare className="w-5 h-5 text-gray-600"/></div>
-                <input type="text" placeholder="메시지 입력..." className="flex-1 bg-gray-100 rounded-full px-4 py-2 outline-none text-sm" />
-                <button className="bg-blue-500 p-2 rounded-full text-white"><Send className="w-4 h-4" /></button>
-                </div>
-            </div>
-            );
-        }
-
-        return (
-            <div className="h-full w-full bg-white flex flex-col">
-            <div className="p-4 border-b flex justify-between items-center">
-                <h1 className="text-xl font-bold">메시지</h1>
-                <PlusSquare className="w-6 h-6" />
-            </div>
-            <div className="flex-1 overflow-y-auto no-scrollbar pb-20">
-                {DM_LIST.map(dm => (
-                <div key={dm.id} className="flex items-center gap-4 p-4 active:bg-gray-50 cursor-pointer" onClick={() => setActiveChat(dm)}>
-                    <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center font-bold text-blue-600 text-xl relative">
-                    {dm.name[0]}
-                    {dm.unread > 0 && (
-                        <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full border-2 border-white">
-                        {dm.unread}
-                        </div>
-                    )}
-                    </div>
-                    <div className="flex-1">
-                    <h3 className="font-bold">{dm.name}</h3>
-                    <p className="text-gray-500 text-sm truncate">{dm.lastMessage}</p>
-                    </div>
-                    <span className="text-xs text-gray-400">{dm.time}</span>
-                </div>
-                ))}
-            </div>
-            </div>
-        );
-        };
-
-        const CreateScreen = () => (
-        <div className="h-full w-full bg-black text-white flex flex-col items-center justify-center p-6 gap-6 relative">
-            <div className="absolute top-6 left-6 text-xl font-bold">만들기</div>
-            <p className="text-gray-400 mb-4 text-center">어떤 콘텐츠를<br/>만들어 볼까요?</p>
-            
-            <button className="w-full max-w-xs bg-gradient-to-r from-purple-500 to-pink-500 p-8 rounded-3xl flex flex-col items-center justify-center gap-4 hover:scale-105 transition-transform shadow-lg shadow-purple-500/30">
-            <div className="bg-white/20 p-4 rounded-full"><Clapperboard className="w-10 h-10" /></div>
-            <span className="font-bold text-xl">밈(Meme) 생성기</span>
-            <span className="text-xs text-white/70">템플릿으로 쉽고 빠르게 제작</span>
-            </button>
-            
-            <button className="w-full max-w-xs bg-gradient-to-r from-blue-500 to-cyan-500 p-8 rounded-3xl flex flex-col items-center justify-center gap-4 hover:scale-105 transition-transform shadow-lg shadow-blue-500/30">
-            <div className="bg-white/20 p-4 rounded-full"><Gamepad2 className="w-10 h-10" /></div>
-            <span className="font-bold text-xl">게임 만들기</span>
-            <span className="text-xs text-white/70">나만의 미니게임 숏폼 제작</span>
-            </button>
-        </div>
-        );
-
-        const SettingsScreen = () => (
-        <div className="h-full w-full bg-white flex flex-col">
-            <div className="p-4 border-b">
-            <h1 className="text-xl font-bold">설정 및 프로필</h1>
-            </div>
-            <div className="p-6 flex flex-col items-center border-b">
-            <UserCircle className="w-24 h-24 text-gray-300 mb-2" />
-            <h2 className="text-xl font-bold">사용자123</h2>
-            <p className="text-gray-500 text-sm">@user_12345</p>
-            </div>
-            <div className="flex-1 p-4 overflow-y-auto no-scrollbar pb-20">
-            {['계정 관리', '개인정보 보호', '알림 설정', '도움말', '로그아웃'].map((item, i) => (
-                <div key={i} className="py-4 border-b text-gray-800 font-medium cursor-pointer hover:bg-gray-50">
-                {item}
-                </div>
-            ))}
-            </div>
-        </div>
-        );
-
-        // --- [Main App Component] ---
-        function App() {
-        const [activeTab, setActiveTab] = useState(1); 
-        const [touchStart, setTouchStart] = useState(null);
-        const [showFeedUI, setShowFeedUI] = useState(false);
+      // 생성 시작 (가챠 굴리기)
+      const handleStartGeneration = () => {
+        setPhase('analyzing');
         
-        // Iframe 모달을 제어하는 상태 (URL이 있으면 열림)
-        const [activeIframeUrl, setActiveIframeUrl] = useState(null);
+        setTimeout(() => {
+          let finalPrompt = '';
+          if (scenario.trim()) {
+            finalPrompt = `[최적화됨] ${scenario}`;
+          } else if (t2vPrompt.trim()) {
+            finalPrompt = `[이미지 분석됨] ${t2vPrompt}의 특징을 살린 트렌디한 영상`;
+          } else {
+            finalPrompt = `[트렌드 반영] ${TRENDING_PROMPTS[Math.floor(Math.random() * TRENDING_PROMPTS.length)]}`;
+          }
+          
+          setOptimizedPrompt(finalPrompt);
+          setPhase('generating');
+          
+          setTimeout(() => {
+            setPhase('result');
+          }, 2500);
+        }, 1500);
+      };
 
-        const toggleFeedUI = () => setShowFeedUI(!showFeedUI);
+      // 바이브(스타일) 느낌 적용해서 다시 생성
+      const handleApplyVibe = () => {
+        if (!selectedVibe) return;
+        
+        setCurrentVibe(selectedVibe);
+        setPhase('generating');
+        
+        setTimeout(() => {
+          setOptimizedPrompt(`${selectedVibe} 스타일이 진하게 적용된: ${optimizedPrompt}`);
+          setPhase('result');
+          setSelectedVibe(''); 
+        }, 2000);
+      };
 
-        const handleTouchStart = (e) => {
-            setTouchStart({ x: e.touches[0].clientX, y: e.touches[0].clientY });
-        };
+      // 최종 결과물 내보내기 (부모 앱으로 데이터 전달)
+      const handleExport = () => {
+        setPhase('saving'); 
+        setTimeout(() => {
+          // 생성된 영상 데이터(URL, 프롬프트 등)를 묶어서 부모에게 전달하는 로직이 들어갈 곳
+          const generatedData = { prompt: optimizedPrompt, vibe: currentVibe };
+          onComplete(generatedData);
+        }, 800);
+      };
 
-        const handleTouchEnd = (e) => {
-            if (!touchStart) return;
-            const dx = touchStart.x - e.changedTouches[0].clientX;
-            const dy = touchStart.y - e.changedTouches[0].clientY;
-
-            if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 60) {
-            if (dx > 0 && activeTab < 4) {
-                setActiveTab(prev => prev + 1);
-            } else if (dx < 0 && activeTab > 0) {
-                setActiveTab(prev => prev - 1);
-            }
-            }
-            setTouchStart(null);
-        };
-
-        const renderTabContent = () => {
-            switch (activeTab) {
-            case 0: return <HomeScreen />;
-            case 1: return <FeedScreen showUI={showFeedUI} toggleUI={toggleFeedUI} openIframe={setActiveIframeUrl} />;
-            case 2: return <CreateScreen />;
-            case 3: return <DMScreen />;
-            case 4: return <SettingsScreen />;
-            default: return <FeedScreen showUI={showFeedUI} toggleUI={toggleFeedUI} openIframe={setActiveIframeUrl} />;
-            }
-        };
-
-        const navBgClass = (activeTab === 1 || activeTab === 2) ? 'bg-black/70 backdrop-blur-md border-gray-800/50' : 'bg-white border-gray-200';
-        const navTextClass = (activeTab === 1 || activeTab === 2) ? 'text-gray-400' : 'text-gray-400';
-        const navActiveTextClass = (activeTab === 1 || activeTab === 2) ? 'text-white' : 'text-black';
-        const hideNavClass = (activeTab === 1 && !showFeedUI) ? 'translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100';
-
-        return (
-            <div className="w-full h-[100dvh] bg-black sm:p-4 flex justify-center items-center">
-                <div 
-                className="relative w-full max-w-md h-full sm:h-[850px] sm:rounded-[3rem] overflow-hidden bg-black shadow-2xl sm:border-[8px] border-gray-800"
-                onTouchStart={handleTouchStart}
-                onTouchEnd={handleTouchEnd}
-                >
-                <div className="w-full h-full">
-                    {renderTabContent()}
-                </div>
-
-                {/* 하단 네비게이션 */}
-                <div className={`absolute bottom-0 w-full pb-safe pt-2 h-[4.5rem] flex justify-around items-start border-t ${navBgClass} z-50 transition-all duration-300 ${hideNavClass}`}>
-                    <button onClick={() => setActiveTab(0)} className={`flex flex-col items-center px-4 py-1 ${activeTab === 0 ? navActiveTextClass : navTextClass}`}>
-                    <Home className="w-6 h-6" />
-                    <span className="text-[10px] mt-1 font-medium">홈</span>
-                    </button>
-                    
-                    <button onClick={() => setActiveTab(1)} className={`flex flex-col items-center px-4 py-1 ${activeTab === 1 ? navActiveTextClass : navTextClass}`}>
-                    <Clapperboard className="w-6 h-6" />
-                    <span className="text-[10px] mt-1 font-medium">피드</span>
-                    </button>
-                    
-                    <button onClick={() => setActiveTab(2)} className="flex flex-col items-center px-2 py-0 -mt-5 relative z-10">
-                    <div className={`p-3 rounded-2xl bg-gradient-to-tr from-cyan-400 to-blue-500 text-white shadow-lg`}>
-                        <PlusSquare className="w-6 h-6" />
-                    </div>
-                    <span className={`text-[10px] mt-1 font-medium ${activeTab === 2 ? navActiveTextClass : navTextClass}`}>만들기</span>
-                    </button>
-                    
-                    <button onClick={() => setActiveTab(3)} className={`flex flex-col items-center px-4 py-1 ${activeTab === 3 ? navActiveTextClass : navTextClass}`}>
-                    <MessageCircle className="w-6 h-6" />
-                    <span className="text-[10px] mt-1 font-medium">DM</span>
-                    </button>
-                    
-                    <button onClick={() => setActiveTab(4)} className={`flex flex-col items-center px-4 py-1 ${activeTab === 4 ? navActiveTextClass : navTextClass}`}>
-                    <Settings className="w-6 h-6" />
-                    <span className="text-[10px] mt-1 font-medium">설정</span>
-                    </button>
-                </div>
-
-                {/* 인앱 기능처럼 보이는 Iframe 모달 창 */}
-                {activeIframeUrl && (
-                    <div className="absolute inset-0 z-[100] bg-black modal-animate">
-                        <div className="absolute top-4 left-4 z-[110]">
-                            <button 
-                                onClick={() => setActiveIframeUrl(null)} 
-                                className="p-3 bg-black/60 rounded-full text-white backdrop-blur-md shadow-lg border border-white/20 flex items-center justify-center"
-                            >
-                                <ChevronLeft className="w-6 h-6" />
-                            </button>
-                        </div>
-                        <iframe 
-                            src={activeIframeUrl} 
-                            className="w-full h-full border-none bg-white" 
-                            allow="autoplay; fullscreen"
-                            title="Embedded Feature"
-                        />
-                    </div>
-                )}
-                </div>
+      return (
+        <div className="flex-1 w-full h-full bg-[#09090b] flex flex-col relative animate-in fade-in duration-300">
+          
+          {/* 에디터 헤더 */}
+          <div className="flex items-center justify-between px-4 py-3 bg-[#09090b] border-b border-white/10 shrink-0 z-20">
+            <button onClick={onBack} className="p-2 -ml-2 text-zinc-400 hover:text-white transition-colors"><ChevronLeft size={28}/></button>
+            <div className="flex flex-col items-center">
+              <span className="font-bold text-sm">{phase === 'result' ? '영상 완성' : '새 프로젝트'}</span>
             </div>
-        );
-        }
+            <button 
+              onClick={handleExport}
+              disabled={phase !== 'result'}
+              className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${phase === 'result' ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/30 active:scale-95' : 'bg-zinc-800 text-zinc-600'}`}
+            >
+              게시하기
+            </button>
+          </div>
 
-        // --- 앱 렌더링 ---
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
+          <div className="flex-1 overflow-y-auto scrollbar-hide relative flex flex-col">
+            
+            {/* ==========================================
+                STEP 1: 무엇을 만들까? (입력 화면)
+                ========================================== */}
+            {phase === 'input' && (
+              <div className="p-4 space-y-6 animate-in slide-in-from-bottom-4">
+                {/* 1. 프롬프트/시나리오 입력 (선택사항) */}
+                <div>
+                  <label className="text-sm font-black text-white mb-2 block flex items-center justify-between">
+                    어떤 영상을 만들까? 🎬 
+                    <span className="text-[10px] text-zinc-500 font-normal bg-zinc-800 px-2 py-0.5 rounded-full">선택사항</span>
+                  </label>
+                  <div className="relative">
+                    <textarea 
+                      value={scenario}
+                      onChange={(e)=>setScenario(e.target.value)}
+                      placeholder="빈칸으로 두면 AI가 알아서 요즘 유행하는 트렌드 영상을 만들어드려요!"
+                      className="w-full bg-zinc-900 border border-white/10 rounded-2xl p-4 text-sm focus:outline-none focus:border-pink-500 transition-colors resize-none h-32 placeholder:text-zinc-600 shadow-inner"
+                    ></textarea>
+                  </div>
+                </div>
+
+                {/* 2. 주인공 선택 (선택사항) */}
+                <div className="space-y-3">
+                   <label className="text-sm font-black text-white block flex items-center justify-between">
+                     누가 나오게 할까? 👤
+                     <span className="text-[10px] text-zinc-500 font-normal bg-zinc-800 px-2 py-0.5 rounded-full">선택사항</span>
+                   </label>
+                   
+                   <div className="flex gap-2">
+                      <input type="text" value={t2vPrompt} onChange={e=>setT2vPrompt(e.target.value)} placeholder="원하는 캐릭터 외형 묘사" className="flex-1 bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-pink-500 transition-colors"/>
+                   </div>
+                   
+                   <div className="flex items-center gap-3 px-2 py-2">
+                     <div className="flex-1 h-px bg-white/10"></div>
+                     <span className="text-[10px] text-zinc-600 font-bold">또는</span>
+                     <div className="flex-1 h-px bg-white/10"></div>
+                   </div>
+
+                   <div className="w-full py-4 bg-zinc-900/50 border border-dashed border-zinc-700 rounded-xl flex items-center justify-center text-zinc-400 text-sm gap-2 active:bg-zinc-800 transition-colors cursor-pointer">
+                      <Plus size={20} className="text-zinc-500" />
+                      <span className="font-medium">내 갤러리에서 사진 고르기</span>
+                   </div>
+                </div>
+
+                {/* 생성 버튼 (항상 활성화) */}
+                <div className="pt-6">
+                  <button 
+                    onClick={handleStartGeneration}
+                    className="w-full py-4 bg-gradient-to-r from-pink-600 to-indigo-600 rounded-2xl text-white font-black text-lg shadow-[0_4px_20px_rgba(236,72,153,0.4)] active:scale-95 transition-transform flex items-center justify-center gap-2"
+                  >
+                    <Sparkles size={24}/> 알아서 뚝딱 만들기
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ==========================================
+                STEP 2: 무지성 에디터 (결과 및 바이브 적용)
+                ========================================== */}
+            {phase === 'result' && (
+              <div className="flex-1 flex flex-col animate-in zoom-in-95 duration-500 bg-[#09090b]">
+                
+                {/* 풀스크린 영상 프리뷰 */}
+                <div className="relative w-full h-full bg-black overflow-hidden flex-1 flex flex-col justify-end shadow-[inset_0_0_100px_rgba(0,0,0,0.8)]">
+                  <img src={DUMMY_IMG} className="absolute inset-0 w-full h-full object-cover opacity-90" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent pointer-events-none"></div>
+                  
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                     <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center shadow-2xl">
+                        <Play size={28} fill="white" className="ml-1" />
+                     </div>
+                  </div>
+
+                  {/* 프롬프트 결과 정보 (작게 표시) */}
+                  <div className="relative z-10 px-5 mb-4 pointer-events-none">
+                    <div className="inline-flex bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10">
+                       <p className="text-[10px] font-medium text-zinc-300 line-clamp-2">
+                         <span className="text-pink-400 font-bold">적용된 AI 프롬프트: </span>
+                         {optimizedPrompt}
+                       </p>
+                    </div>
+                  </div>
+
+                  {/* Vibe 원터치 필터 (오디오/이펙트 통합) */}
+                  <div className="relative z-10 w-full px-4 mb-8">
+                    <p className="text-[11px] font-bold text-white mb-3 drop-shadow-md flex items-center gap-1.5"><Sparkles size={14} className="text-yellow-400"/> 원터치 바이브 (다시 렌더링)</p>
+                    <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2 snap-x">
+                      {vibes.map(vibe => (
+                        <button 
+                          key={vibe}
+                          onClick={() => setSelectedVibe(prev => prev === vibe ? '' : vibe)}
+                          className={`snap-start shrink-0 px-5 py-3 rounded-2xl text-sm font-black transition-all backdrop-blur-md border active:scale-95 ${selectedVibe === vibe ? 'bg-pink-600 text-white border-pink-400 shadow-[0_0_15px_rgba(236,72,153,0.5)]' : 'bg-black/60 text-zinc-300 border-white/20 hover:bg-black/80'}`}
+                        >
+                          {vibe}
+                        </button>
+                      ))}
+                    </div>
+                    
+                    {/* 느낌 적용하기 버튼 (선택된 바이브가 있을 때만 노출) */}
+                    {selectedVibe && (
+                      <div className="mt-3 animate-in slide-in-from-bottom-2 fade-in">
+                        <button 
+                          onClick={handleApplyVibe}
+                          className="w-full py-3.5 bg-gradient-to-r from-pink-600 to-indigo-600 rounded-xl text-white font-black text-sm shadow-[0_4px_20px_rgba(236,72,153,0.4)] active:scale-95 transition-transform flex items-center justify-center gap-2"
+                        >
+                          <Wand2 size={18}/> 느낌 적용해서 다시 만들기
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {/* 공통 로딩 오버레이 (분석 중 / 생성 중 / 저장 중 분리) */}
+          {(phase === 'analyzing' || phase === 'generating' || phase === 'saving') && (
+            <div className="absolute inset-0 bg-black/95 z-[60] flex flex-col items-center justify-center animate-in fade-in">
+               <Loader2 size={64} className="text-pink-500 animate-spin mb-6" />
+               <h2 className="text-xl font-black mb-3 text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-indigo-400">
+                 {phase === 'analyzing' ? '스토리보드 최적화 중...' : phase === 'generating' ? '영상을 뽑아보는 중! 🎲' : '보관함에 저장 중... 📥'}
+               </h2>
+               <p className="text-sm text-zinc-400 text-center leading-relaxed">
+                 {phase === 'analyzing' 
+                    ? '입력하신 정보(또는 트렌드)를 분석하여\n가장 멋진 연출을 기획하고 있습니다.' 
+                    : phase === 'generating'
+                    ? 'AI가 컷을 나누고 영상을 뚝딱 만들어냅니다.\n어떤 결과가 나올지 기대해주세요!'
+                    : '완성된 영상을 내 작업함으로\n안전하게 옮기고 있습니다.'}
+               </p>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    // --- 최상위 컨테이너 (실제 운영 시에는 이 App이 부모 앱이 됩니다) ---
+    const App = () => {
+      // 상위 앱에서 모듈의 종료/완료를 처리하는 콜백 함수들
+      const handleCloseModule = () => {
+        alert("모듈 종료: 부모 앱의 이전 화면으로 돌아갑니다.");
+      };
+
+      const handleCompleteModule = (data) => {
+        alert("게시 완료!\n생성된 데이터: " + data.prompt + "\n부모 앱의 '보관함(내 작업함)'으로 라우팅됩니다.");
+        // window.location.href = '/inbox'; 같은 라우팅 로직 처리
+      };
+
+      return (
+        <div className="w-full h-full">
+          {/* 분리된 생성 모듈을 바로 마운트합니다. */}
+          <EditorModule onBack={handleCloseModule} onComplete={handleCompleteModule} />
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
 </body>
 </html>
