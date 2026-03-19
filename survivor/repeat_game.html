@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>뱀서라이크 - 오브젝트 수정 룸</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+KR:wght@400;700&display=swap');
+
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #000;
+            color: white;
+            user-select: none;
+            -webkit-user-select: none;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        /* 게임 배경 패턴 (나무 바닥 대신 사용) */
+        .game-bg {
+            background-color: #2d5a27;
+            background-repeat: repeat;
+            box-shadow: inset 0 0 0 2000px rgba(0, 0, 0, 0.6); 
+        }
+
+        .pixel-font {
+            font-family: 'Press Start 2P', 'Noto Sans KR', cursive;
+        }
+
+        /* 캐릭터/오브젝트 스프라이트 컨테이너 */
+        .sprite-container {
+            width: 64px;
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        .sprite-container:active {
+            transform: scale(0.9);
+        }
+
+        .sprite-shadow {
+            position: absolute;
+            bottom: 5px;
+            width: 40px;
+            height: 12px;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 50%;
+            z-index: 1;
+        }
+
+        .sprite-img {
+            max-width: 150%;
+            max-height: 150%;
+            z-index: 2;
+            position: relative;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+        }
+
+        .sprite-name {
+            font-size: 11px;
+            font-weight: 700;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 2px 6px;
+            border-radius: 4px;
+            border: 1px solid #555;
+            margin-top: -5px;
+            z-index: 3;
+            white-space: nowrap;
+        }
+
+        /* 카테고리 선반 느낌의 구분선 */
+        .shelf-divider {
+            height: 12px;
+            background: linear-gradient(to bottom, #8b5a2b, #5c3a21);
+            border-top: 1px solid #a67b5b;
+            border-bottom: 2px solid #2a1a0f;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
+        /* 커스텀 스크롤바 */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #2a1a0f; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #8b5a2b; 
+            border-radius: 3px;
+        }
+
+        /* 모달 애니메이션 */
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+        .modal-animate {
+            animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        /* 게임 스타일 슬라이드바(Range) CSS */
+        input[type=range].game-slider {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range].game-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 24px;
+            width: 24px;
+            border-radius: 50%;
+            background: #eab308; /* yellow-500 */
+            border: 2px solid #fff;
+            cursor: pointer;
+            margin-top: -8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.8);
+        }
+        input[type=range].game-slider::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 8px;
+            cursor: pointer;
+            background: #374151; /* gray-700 */
+            border-radius: 4px;
+            border: 1px solid #1f2937;
+        }
+        input[type=range].game-slider:focus {
+            outline: none;
+        }
+
+        /* 숫자 입력 필드의 스피너(화살표) 숨기기 */
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+    </style>
+</head>
+<body class="h-screen w-full flex justify-center bg-gray-900">
+
+    <!-- 모바일 화면 비율 컨테이너 -->
+    <div id="main-container" class="w-full max-w-md h-full game-bg flex flex-col relative overflow-hidden shadow-2xl border-x-4 border-gray-800">
+        
+        <!-- 헤더 -->
+        <header class="bg-black/80 border-b-2 border-yellow-600 p-4 shrink-0 z-10">
+            <h1 class="text-xl font-bold text-center text-yellow-500 pixel-font">RECOLLECTION ROOM</h1>
+            <p class="text-xs text-center text-gray-300 mt-1">객체를 터치하여 속성을 수정하세요</p>
+        </header>
+
+        <!-- 객체 리스트 (스크롤 영역) -->
+        <main id="object-list" class="flex-1 overflow-y-auto pb-32">
+            <!-- JS로 동적 생성됨 -->
+        </main>
+
+        <!-- 플로팅 액션 버튼 (항상 하단 고정) -->
+        <div class="absolute bottom-0 left-0 w-full bg-gray-900/95 border-t-2 border-yellow-700 p-4 flex gap-3 z-40 shadow-[0_-10px_20px_rgba(0,0,0,0.6)] backdrop-blur-sm">
+            <button class="flex-1 bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-500 active:scale-95 transition shadow-lg flex flex-col items-center justify-center gap-1" onclick="alert('게임을 실행합니다!')">
+                <span class="text-2xl leading-none">🎮</span>
+                <span class="text-xs">테스트 플레이</span>
+            </button>
+            <button class="flex-1 bg-green-600 text-white font-bold py-3 rounded-xl hover:bg-green-500 active:scale-95 transition shadow-lg flex flex-col items-center justify-center gap-1" onclick="alert('설정이 배포되었습니다!')">
+                <span class="text-2xl leading-none">🚀</span>
+                <span class="text-xs">배포하기</span>
+            </button>
+        </div>
+
+    </div>
+
+    <!-- 수정 모달 (Bottom Sheet 형태) -->
+    <div id="edit-modal" class="fixed inset-0 z-50 flex flex-col justify-end hidden">
+        <!-- 배경 딤 처리 -->
+        <div class="absolute inset-0 bg-black/60" onclick="closeModal()"></div>
+        
+        <!-- 모달 컨텐츠 -->
+        <div class="bg-gray-800 border-t-4 border-yellow-600 rounded-t-2xl relative z-10 flex flex-col max-h-[85vh] w-full max-w-md mx-auto modal-animate">
+            <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-900 rounded-t-2xl shrink-0">
+                <div class="flex items-center gap-3">
+                    <div id="modal-icon" class="w-10 h-10 flex items-center justify-center bg-gray-800 rounded-lg text-2xl border border-gray-600 shadow-inner">
+                        <!-- Icon/Img -->
+                    </div>
+                    <div>
+                        <h2 id="modal-title" class="text-lg font-bold text-yellow-500">객체 이름</h2>
+                        <p id="modal-category" class="text-xs text-gray-400">카테고리</p>
+                    </div>
+                </div>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-white p-2 text-3xl leading-none font-bold">&times;</button>
+            </div>
+            
+            <div id="modal-body" class="p-4 overflow-y-auto flex-1 flex flex-col gap-4">
+                <!-- 입력 필드들이 여기에 동적 생성됨 -->
+            </div>
+            
+            <div class="p-4 border-t border-gray-700 bg-gray-900 flex gap-2 shrink-0">
+                <button onclick="closeModal()" class="flex-1 py-3 bg-gray-700 text-white rounded-lg font-bold hover:bg-gray-600 transition active:scale-95">취소</button>
+                <button onclick="saveChanges()" class="flex-2 w-2/3 py-3 bg-yellow-600 text-black rounded-lg font-bold hover:bg-yellow-500 transition active:scale-95 text-lg">적용하기</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+    // --- 데이터 추출 및 구조화 ---
+    const GAME_DATA = {
+        rules: [
+            { id: 'rule_time', name: '최대 게임 시간 (초)', value: 1800, type: 'rules', icon: '⏳' },
+            { id: 'rule_weapons', name: '최대 무기 개수', value: 6, type: 'rules', icon: '🎒' },
+            { id: 'rule_passives', name: '최대 패시브 개수', value: 6, type: 'rules', icon: '🛡️' }
+        ],
+        player: [
+            { 
+                id: 'player_main', name: '플레이어 기본형', type: 'player', 
+                imgSrc: 'https://raw.githubusercontent.com/kimdaroo/minigame/refs/heads/main/survivor/images/Player.png',
+                hp: 100, maxHp: 100, baseSpeed: 150, basePickupRange: 60 
+            },
+            {
+                id: 'bg_main', name: '메인 맵(배경)', type: 'map',
+                imgSrc: 'https://raw.githubusercontent.com/kimdaroo/minigame/refs/heads/main/survivor/images/BackGround.png',
+                desc: '게임 바닥에 깔리는 타일 이미지 URL'
+            }
+        ],
+        enemies: [
+            { id: 'enemy_A', name: '몬스터 A (기본)', type: 'enemy', imgSrc: 'https://raw.githubusercontent.com/kimdaroo/minigame/refs/heads/main/survivor/images/monster_A.webp', hp: 10, dmg: 5, speed: 60, radius: 10 },
+            { id: 'enemy_B', name: '몬스터 B (탱커)', type: 'enemy', imgSrc: 'https://raw.githubusercontent.com/kimdaroo/minigame/refs/heads/main/survivor/images/monster_B.webp', hp: 25, dmg: 8, speed: 40, radius: 12 },
+            { id: 'enemy_C', name: '몬스터 C (스피드)', type: 'enemy', imgSrc: 'https://raw.githubusercontent.com/kimdaroo/minigame/refs/heads/main/survivor/images/monster_C.webp', hp: 5, dmg: 2, speed: 180, radius: 8 },
+            { id: 'enemy_D', name: '몬스터 D (엘리트)', type: 'enemy', imgSrc: 'https://raw.githubusercontent.com/kimdaroo/minigame/refs/heads/main/survivor/images/monster_D.webp', hp: 80, dmg: 15, speed: 50, radius: 15 },
+            { id: 'enemy_BOSS', name: '보스 몬스터', type: 'enemy', imgSrc: 'https://raw.githubusercontent.com/kimdaroo/minigame/refs/heads/main/survivor/images/monster_E.webp', hp: 1500, dmg: 30, speed: 45, radius: 35 },
+            { id: 'enemy_REAPER', name: '사신 (30분)', type: 'enemy', color: '#000000', icon: '💀', hp: 9999999, dmg: 9999, speed: 400, radius: 40 }
+        ],
+        weapons: [
+            { id: 'sword', name: '채찍(검)', type: 'weapon', icon: '🗡️', baseCooldown: 1.2, baseDamage: 15, range: 120 },
+            { id: 'bow', name: '단검(활)', type: 'weapon', icon: '🏹', baseCooldown: 0.8, baseDamage: 10, range: 800, speed: 500 },
+            { id: 'boomerang', name: '십자가(부메랑)', type: 'weapon', icon: '🪃', baseCooldown: 1.5, baseDamage: 12, range: 400, speed: 400 },
+            { id: 'radiation', name: '마늘(방사능)', type: 'weapon', icon: '🧄', baseCooldown: 0.3, baseDamage: 3, range: 100 },
+            { id: 'ev_sword', name: '피의 눈물(진화)', type: 'weapon', icon: '🩸', baseCooldown: 1.5, baseDamage: 40, range: 250 },
+            { id: 'ev_bow', name: '천 개의 칼날(진화)', type: 'weapon', icon: '✨', baseCooldown: 0.1, baseDamage: 15, range: 1200, speed: 800 },
+            { id: 'ev_boomerang', name: '천상의 검(진화)', type: 'weapon', icon: '⚔️', baseCooldown: 0.0, baseDamage: 25, range: 200, speed: 300 },
+            { id: 'ev_radiation', name: '영혼 포식자(진화)', type: 'weapon', icon: '🌀', baseCooldown: 0.1, baseDamage: 10, range: 250 }
+        ],
+        passives: [
+            { id: 'might', name: '시금치(공격력)', type: 'passive', icon: '🥬', maxLevel: 5, desc: '피해량 10% 증가' },
+            { id: 'cd_red', name: '빈 책(쿨감)', type: 'passive', icon: '📖', maxLevel: 5, desc: '쿨타임 8% 감소' },
+            { id: 'speed', name: '팔목 보호대(투속)', type: 'passive', icon: '🧤', maxLevel: 5, desc: '투사체 속도 10% 증가' },
+            { id: 'area', name: '촛대(범위)', type: 'passive', icon: '🕯️', maxLevel: 5, desc: '공격 범위 10% 증가' },
+            { id: 'move', name: '날개(이동속도)', type: 'passive', icon: '🪽', maxLevel: 5, desc: '이동 속도 10% 증가' },
+            { id: 'magnet', name: '매혹의 오브(자석)', type: 'passive', icon: '🧲', maxLevel: 5, desc: '획득 범위 증가' }
+        ]
+    };
+
+    let currentEditingItem = null;
+    let tempImageSrc = null;
+
+    // --- UI 렌더링 ---
+    const listContainer = document.getElementById('object-list');
+
+    function createSection(title, items, isDarkerShelf = false) {
+        const section = document.createElement('section');
+        section.className = 'pt-6 flex flex-col items-center';
+
+        const titleLabel = document.createElement('div');
+        titleLabel.className = 'bg-black border-2 border-yellow-700 text-yellow-400 px-4 py-1 rounded-sm text-sm font-bold mb-4 shadow-lg';
+        titleLabel.innerText = title;
+        section.appendChild(titleLabel);
+
+        const grid = document.createElement('div');
+        grid.className = 'flex flex-wrap justify-center gap-6 px-4 pb-2 max-w-full';
+
+        items.forEach(item => {
+            const container = document.createElement('div');
+            container.className = 'flex flex-col items-center gap-1 sprite-container';
+            container.onclick = () => openModal(item);
+
+            const shadow = document.createElement('div');
+            shadow.className = 'sprite-shadow';
+            container.appendChild(shadow);
+
+            if (item.imgSrc) {
+                const img = document.createElement('img');
+                img.src = item.imgSrc;
+                img.className = 'sprite-img';
+                if(item.id === 'enemy_BOSS') {
+                    img.style.filter = 'hue-rotate(180deg) drop-shadow(0 0 10px red)';
+                    img.style.transform = 'scale(1.2)';
+                }
+                container.appendChild(img);
+            } else if (item.color && !item.icon) {
+                const circle = document.createElement('div');
+                circle.className = 'sprite-img rounded-full border-2 border-red-500 flex items-center justify-center text-white';
+                circle.style.backgroundColor = item.color;
+                circle.style.width = '40px';
+                circle.style.height = '40px';
+                container.appendChild(circle);
+            } else {
+                const emoji = document.createElement('div');
+                emoji.className = 'sprite-img text-4xl';
+                emoji.innerText = item.icon || '❓';
+                container.appendChild(emoji);
+            }
+
+            const nameTag = document.createElement('div');
+            nameTag.className = 'sprite-name';
+            nameTag.innerText = item.name;
+            container.appendChild(nameTag);
+
+            grid.appendChild(container);
+        });
+
+        section.appendChild(grid);
+
+        const divider = document.createElement('div');
+        divider.className = 'shelf-divider mt-2 ' + (isDarkerShelf ? 'brightness-75' : '');
+        section.appendChild(divider);
+
+        return section;
+    }
+
+    function initRoom() {
+        listContainer.innerHTML = ''; 
+        
+        const bgData = GAME_DATA.player.find(item => item.id === 'bg_main');
+        if (bgData && bgData.imgSrc) {
+            document.getElementById('main-container').style.backgroundImage = `url('${bgData.imgSrc}')`;
+        }
+
+        listContainer.appendChild(createSection('- 게임 룰 (System) -', GAME_DATA.rules));
+        listContainer.appendChild(createSection('- 캐릭터 & 배경 (Player & Map) -', GAME_DATA.player));
+        listContainer.appendChild(createSection('- 몬스터 (Enemies) -', GAME_DATA.enemies, true));
+        listContainer.appendChild(createSection('- 무기 (Weapons) -', GAME_DATA.weapons));
+        listContainer.appendChild(createSection('- 패시브 (Passives) -', GAME_DATA.passives, true));
+    }
+
+    // --- 수정 모달 로직 ---
+    const modal = document.getElementById('edit-modal');
+    const modalTitle = document.getElementById('modal-title');
+    const modalCategory = document.getElementById('modal-category');
+    const modalIcon = document.getElementById('modal-icon');
+    const modalBody = document.getElementById('modal-body');
+
+    const excludeKeys = ['id', 'name', 'type', 'icon', 'color', 'desc', 'imgSrc'];
+
+    const typeKorMap = {
+        'rules': '게임 시스템',
+        'player': '플레이어 캐릭터',
+        'map': '배경 이미지',
+        'enemy': '적 몬스터',
+        'weapon': '무기/장비',
+        'passive': '패시브/버프'
+    };
+
+    // 키(속성)에 따른 슬라이더 최대/최소/스텝 자동 설정 휴리스틱
+    function getSliderConfig(key, val, itemId) {
+        let max = Math.max(val * 2, 100);
+        let min = 0;
+        let step = 1;
+
+        if (['baseCooldown'].includes(key)) {
+            max = 5.0; step = 0.1;
+        } else if (['speed', 'baseSpeed'].includes(key)) {
+            max = 1000; step = 10;
+        } else if (['hp', 'maxHp'].includes(key)) {
+            max = val > 2000 ? val * 2 : 2000; step = 10;
+        } else if (['dmg', 'baseDamage'].includes(key)) {
+            max = val > 500 ? val * 2 : 500; step = 5;
+        } else if (['radius', 'range', 'basePickupRange'].includes(key)) {
+            max = 1500; step = 10;
+        } else if (key === 'value' && itemId === 'rule_time') {
+            max = 3600; step = 60; // 최대 60분, 1분 단위 조절
+        } else if (key === 'value' || key === 'maxLevel') {
+            max = 20; step = 1; min = 1;
+        }
+
+        // 사신처럼 터무니없이 높은 수치 대응 (로그스케일 대신 단순히 현재값 기준 조절로 타협)
+        if (val >= 9999) {
+            max = val * 2;
+            step = Math.floor(val / 100);
+        }
+
+        return { min, max, step };
+    }
+
+    // 버튼 클릭 시 슬라이더 값 변경용 전역 함수
+    window.adjustValue = function(inputId, displayId, delta) {
+        const input = document.getElementById(inputId);
+        const display = document.getElementById(displayId);
+        if(!input) return;
+        
+        let current = parseFloat(input.value);
+        let newValue = current + delta;
+        
+        // min, max 제한
+        const min = parseFloat(input.min);
+        const max = parseFloat(input.max);
+        if(newValue < min) newValue = min;
+        if(newValue > max) newValue = max;
+
+        // 소수점 보정 (부동소수점 오류 방지)
+        const step = parseFloat(input.step);
+        if(step % 1 !== 0) {
+            newValue = parseFloat(newValue.toFixed(1));
+        }
+
+        input.value = newValue;
+        display.value = newValue; // span에서 input으로 변경되었으므로 value 사용
+    };
+
+    function openModal(item) {
+        currentEditingItem = item;
+        tempImageSrc = item.imgSrc || null; 
+        
+        modalTitle.innerText = item.name;
+        modalCategory.innerText = typeKorMap[item.type];
+        
+        if(item.imgSrc) {
+            modalIcon.innerHTML = `<img src="${item.imgSrc}" class="w-full h-full object-contain p-1" style="${item.id==='enemy_BOSS'?'filter: hue-rotate(180deg)':''}">`;
+        } else {
+            modalIcon.innerHTML = `<span>${item.icon || '❓'}</span>`;
+        }
+
+        modalBody.innerHTML = '';
+
+        // --- 커스텀 이미지 업로드 UI ---
+        const uploadGroup = document.createElement('div');
+        uploadGroup.className = 'flex flex-col gap-2 bg-gray-900/50 p-3 rounded border border-gray-700 mb-2';
+        uploadGroup.innerHTML = `
+            <label class="text-xs text-yellow-400 font-bold uppercase tracking-wider">그래픽 리소스 변경</label>
+            <input type="file" accept="image/*" class="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-gray-700 file:text-white hover:file:bg-gray-600 transition cursor-pointer" id="file-upload">
+        `;
+        modalBody.appendChild(uploadGroup);
+
+        document.getElementById('file-upload').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    tempImageSrc = event.target.result;
+                    modalIcon.innerHTML = `<img src="${tempImageSrc}" class="w-full h-full object-contain p-1">`;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // 설명 추가
+        if(item.desc) {
+            modalBody.innerHTML += `<div class="bg-gray-700/50 p-3 rounded text-sm text-gray-300 mb-2 border border-gray-600">설명: ${item.desc}</div>`;
+        }
+
+        // 속성 에디터 렌더링
+        Object.keys(item).forEach(key => {
+            if (excludeKeys.includes(key)) return;
+
+            const val = item[key];
+            const fieldId = `edit_${key}`;
+            const displayId = `display_${key}`;
+            
+            const fieldGroup = document.createElement('div');
+            fieldGroup.className = 'flex flex-col gap-2 bg-gray-900/50 p-3 rounded border border-gray-700';
+
+            if (typeof val === 'number') {
+                const config = getSliderConfig(key, val, item.id);
+                
+                // 슬라이더 + 스테퍼(+, - 버튼) UI + 직접 입력 가능한 Number Input
+                fieldGroup.innerHTML = `
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="text-xs text-yellow-400 font-bold uppercase tracking-wider">${key}</label>
+                        <input type="number" id="${displayId}" value="${val}" class="font-mono text-xl text-center text-white font-bold bg-black px-2 py-1 rounded shadow-inner border border-gray-700 w-24 focus:outline-none focus:border-yellow-500 transition-colors">
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <button type="button" class="w-12 h-10 bg-gray-700 rounded-lg text-2xl font-bold hover:bg-gray-600 active:scale-90 transition shrink-0 flex items-center justify-center select-none touch-manipulation text-red-400" onclick="adjustValue('${fieldId}', '${displayId}', -${config.step})">-</button>
+                        
+                        <input type="range" id="${fieldId}" min="${config.min}" max="${config.max}" step="${config.step}" value="${val}" class="game-slider">
+                        
+                        <button type="button" class="w-12 h-10 bg-gray-700 rounded-lg text-2xl font-bold hover:bg-gray-600 active:scale-90 transition shrink-0 flex items-center justify-center select-none touch-manipulation text-blue-400" onclick="adjustValue('${fieldId}', '${displayId}', ${config.step})">+</button>
+                    </div>
+                `;
+
+                // 슬라이더 드래그 및 직접 입력 연동 업데이트
+                setTimeout(() => {
+                    const slider = document.getElementById(fieldId);
+                    const display = document.getElementById(displayId);
+                    
+                    // 슬라이더 이동 -> 텍스트 필드 업데이트
+                    slider.addEventListener('input', (e) => {
+                        display.value = e.target.value;
+                    });
+
+                    // 텍스트 필드 직접 입력 -> 슬라이더 위치 업데이트 및 범위 검증
+                    display.addEventListener('change', (e) => {
+                        let num = parseFloat(e.target.value);
+                        if (isNaN(num)) num = parseFloat(slider.min);
+                        if (num < parseFloat(slider.min)) num = parseFloat(slider.min);
+                        if (num > parseFloat(slider.max)) num = parseFloat(slider.max);
+                        
+                        e.target.value = num;
+                        slider.value = num;
+                    });
+                }, 0);
+
+            } else {
+                // 텍스트 필드 (기존 유지)
+                fieldGroup.innerHTML = `
+                    <label class="text-xs text-yellow-400 font-bold uppercase tracking-wider" for="${fieldId}">${key}</label>
+                    <input type="text" id="${fieldId}" value="${val}" class="bg-gray-800 text-white p-2 rounded border border-gray-600 focus:border-yellow-500 focus:outline-none w-full">
+                `;
+            }
+
+            modalBody.appendChild(fieldGroup);
+        });
+
+        modal.classList.remove('hidden');
+    }
+
+    function closeModal() {
+        modal.classList.add('hidden');
+        currentEditingItem = null;
+    }
+
+    function saveChanges() {
+        if (!currentEditingItem) return;
+
+        if (tempImageSrc) {
+            currentEditingItem.imgSrc = tempImageSrc;
+        }
+
+        Object.keys(currentEditingItem).forEach(key => {
+            if (excludeKeys.includes(key)) return;
+            const input = document.getElementById(`edit_${key}`);
+            if (input) {
+                let newVal = input.value;
+                if (typeof currentEditingItem[key] === 'number') {
+                    newVal = parseFloat(newVal) || 0;
+                }
+                currentEditingItem[key] = newVal;
+            }
+        });
+
+        const btn = event.currentTarget;
+        const originalText = btn.innerText;
+        btn.innerText = "저장 완료!";
+        btn.classList.add('bg-green-600', 'text-white');
+        btn.classList.remove('bg-yellow-600', 'text-black');
+        
+        setTimeout(() => {
+            btn.innerText = originalText;
+            btn.classList.remove('bg-green-600', 'text-white');
+            btn.classList.add('bg-yellow-600', 'text-black');
+            closeModal();
+            initRoom(); 
+        }, 300);
+    }
+
+    window.onload = initRoom;
+</script>
+</body>
+</html>

@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>모바일 UGC 앱 데모</title>
+    
+    <!-- Tailwind CSS (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM (CDN) -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    
+    <!-- Babel (브라우저에서 JSX를 컴파일하기 위함) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        /* 커스텀 스크롤바 숨기기 스타일 */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        body { margin: 0; padding: 0; background-color: #000; }
+    </style>
+</head>
+<body>
+    <!-- React 앱이 렌더링될 최상위 요소 -->
+    <div id="root"></div>
+
+    <!-- type="text/babel" 을 지정하여 Babel이 컴파일하도록 함 -->
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- [Icons Mocking] ---
+        // npm 'lucide-react' 패키지를 사용할 수 없는 순수 HTML 환경을 위해 아이콘을 SVG 컴포넌트로 대체합니다.
+        const Home = (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
+        const Clapperboard = (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.4-2.2 1.5-2.5l13.5-4c1.1-.3 2.2.4 2.5 1.5z"/><path d="m6.2 5.3 3.1 3.9"/><path d="m12.4 3.4 3.1 4"/><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>;
+        const PlusSquare = (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><line x1="12" x2="12" y1="8" y2="16"/><line x1="8" x2="16" y1="12" y2="12"/></svg>;
+        const MessageCircle = (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>;
+        const Settings = (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>;
+        const Heart = (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={p.className?.includes('fill') ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>;
+        const MessageSquare = (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={p.className?.includes('fill') ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>;
+        const Repeat = (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>;
+        const Gamepad2 = (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><line x1="6" x2="10" y1="12" y2="12"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="15" x2="15.01" y1="13" y2="13"/><line x1="18" x2="18.01" y1="11" y2="11"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"/></svg>;
+        const MoreVertical = (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>;
+        const ChevronLeft = (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><path d="m15 18-6-6 6-6"/></svg>;
+        const Send = (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>;
+        const Search = (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>;
+        const Bell = (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>;
+        const UserCircle = (p) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={p.className}><circle cx="12" cy="12" r="10"/><circle cx="12" cy="10" r="3"/><path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"/></svg>;
+
+        // --- [Mock Data] ---
+        const FEED_VIDEOS = [
+        {
+            id: 1,
+            author: '@dance_machine',
+            title: '요즘 유행하는 챌린지 춤 춰봤습니다 🕺✨',
+            song: 'Original Sound - dance_machine',
+            likes: '12.4K',
+            comments: '342',
+            isGame: false,
+            gradient: 'from-purple-500 to-indigo-600',
+            emoji: '🕺'
+        },
+        {
+            id: 2,
+            author: '@gamer_pro',
+            title: '이 보스 잡는 법 알려드림 (초간단)',
+            song: 'Epic Battle BGM',
+            likes: '8.9K',
+            comments: '120',
+            isGame: true,
+            gradient: 'from-green-500 to-emerald-800',
+            emoji: '⚔️'
+        },
+        {
+            id: 3,
+            author: '@cat_lover',
+            title: '우리집 고양이 츄르 먹방 🐾',
+            song: 'Cute Cat Song',
+            likes: '45.1K',
+            comments: '1.2K',
+            isGame: false,
+            gradient: 'from-orange-400 to-red-500',
+            emoji: '🐈'
+        },
+        {
+            id: 4,
+            author: '@meme_creator',
+            title: '월요일 아침 직장인 공감 ㅋㅋㅋ',
+            song: 'Sad Violin',
+            likes: '99.9K',
+            comments: '8.4K',
+            isGame: false,
+            gradient: 'from-cyan-500 to-blue-600',
+            emoji: '🏢'
+        }
+        ];
+
+        const HOME_POSTS = [
+        { id: 1, author: '제니', avatar: 'J', content: '오늘 날씨 너무 좋다 ☀️ 다들 뭐하시나요?', likes: 120, time: '2시간 전' },
+        { id: 2, author: '민수', avatar: 'M', content: '새로 산 키보드 타건음 ASMR 들려드림 ⌨️', likes: 45, time: '5시간 전' },
+        { id: 3, author: '지수', avatar: 'S', content: '이번 주말에 부산 놀러가요! 맛집 추천 받습니다', likes: 320, time: '하루 전' },
+        ];
+
+        const STORIES = ['내 스토리', '지수', '민수', '태형', '수아', '정국'];
+
+        const DM_LIST = [
+        { id: 1, name: '지수', lastMessage: '이번 주말에 시간 돼?', time: '오후 2:30', unread: 2 },
+        { id: 2, name: '민수', lastMessage: 'ㅋㅋㅋㅋ 그 영상 봤어?', time: '오전 11:15', unread: 0 },
+        { id: 3, name: '크리에이터 모임', lastMessage: '다들 내일 7시에 봬요~', time: '어제', unread: 5 },
+        ];
+
+        // --- [Components] ---
+
+        const FeedScreen = ({ showUI, toggleUI }) => {
+        const [likedVideos, setLikedVideos] = useState({});
+        const [clickedButtons, setClickedButtons] = useState({});
+
+        // 좋아요 버튼 애니메이션 및 상태 토글
+        const handleLike = (e, id) => {
+            e.stopPropagation(); // 배경 클릭(UI 토글) 이벤트 방지
+            setLikedVideos(prev => ({ ...prev, [id]: !prev[id] }));
+            triggerAnim(id, 'like');
+        };
+
+        // 일반 버튼 애니메이션
+        const handleAction = (e, id, action) => {
+            e.stopPropagation(); // 배경 클릭 이벤트 방지
+            triggerAnim(id, action);
+        };
+
+        // 짧은 강조 애니메이션 트리거
+        const triggerAnim = (id, action) => {
+            const key = `${id}-${action}`;
+            setClickedButtons(prev => ({ ...prev, [key]: true }));
+            setTimeout(() => {
+            setClickedButtons(prev => ({ ...prev, [key]: false }));
+            }, 200);
+        };
+
+        return (
+            <div className="h-full w-full bg-black relative snap-y snap-mandatory overflow-y-scroll no-scrollbar">
+            {FEED_VIDEOS.map((video) => (
+                <div 
+                key={video.id} 
+                className="h-full w-full snap-start relative flex items-center justify-center cursor-pointer"
+                onClick={toggleUI}
+                >
+                <div className={`absolute inset-0 bg-gradient-to-br ${video.gradient} flex items-center justify-center`}>
+                    <span className="text-9xl animate-bounce">{video.emoji}</span>
+                </div>
+
+                <div className={`absolute inset-0 transition-opacity duration-300 ${showUI ? 'opacity-100' : 'opacity-0'} pointer-events-none`}>
+                    <div className="absolute right-4 bottom-24 flex flex-col gap-6 items-center pointer-events-auto">
+                    
+                    <button 
+                        onClick={(e) => handleLike(e, video.id)}
+                        className={`flex flex-col items-center gap-1 transition-transform duration-200 ${clickedButtons[`${video.id}-like`] ? 'scale-125' : 'hover:scale-110 active:scale-95'}`}
+                    >
+                        <div className="p-2 bg-black/40 rounded-full">
+                        <Heart className={`w-7 h-7 transition-colors duration-200 ${likedVideos[video.id] ? 'text-red-500 fill-red-500' : 'text-white'}`} />
+                        </div>
+                        <span className="text-white text-xs font-semibold drop-shadow-md">{video.likes}</span>
+                    </button>
+
+                    <button 
+                        onClick={(e) => handleAction(e, video.id, 'comment')}
+                        className={`flex flex-col items-center gap-1 transition-transform duration-200 ${clickedButtons[`${video.id}-comment`] ? 'scale-125' : 'hover:scale-110 active:scale-95'}`}
+                    >
+                        <div className="p-2 bg-black/40 rounded-full">
+                        <MessageSquare className={`w-7 h-7 transition-colors duration-200 ${clickedButtons[`${video.id}-comment`] ? 'text-blue-400 fill-blue-400' : 'text-white'}`} />
+                        </div>
+                        <span className="text-white text-xs font-semibold drop-shadow-md">{video.comments}</span>
+                    </button>
+
+                    <button 
+                        onClick={(e) => handleAction(e, video.id, 'repeat')}
+                        className={`flex flex-col items-center gap-1 transition-transform duration-200 ${clickedButtons[`${video.id}-repeat`] ? 'scale-125' : 'hover:scale-110 active:scale-95'}`}
+                    >
+                        <div className="p-2 bg-black/40 rounded-full">
+                        <Repeat className={`w-7 h-7 transition-colors duration-200 ${clickedButtons[`${video.id}-repeat`] ? 'text-green-400' : 'text-white'}`} />
+                        </div>
+                        <span className="text-white text-xs font-semibold drop-shadow-md">따라하기</span>
+                    </button>
+
+                    {video.isGame && (
+                        <button 
+                        onClick={(e) => handleAction(e, video.id, 'game')}
+                        className={`flex flex-col items-center gap-1 transition-transform duration-200 ${clickedButtons[`${video.id}-game`] ? 'scale-125' : 'hover:scale-110 active:scale-95'}`}
+                        >
+                        <div className="p-2 bg-blue-500 rounded-full animate-pulse">
+                            <Gamepad2 className="w-7 h-7 text-white" />
+                        </div>
+                        <span className="text-blue-400 text-xs font-bold drop-shadow-md">플레이</span>
+                        </button>
+                    )}
+
+                    <button 
+                        onClick={(e) => handleAction(e, video.id, 'more')}
+                        className={`flex flex-col items-center gap-1 transition-transform duration-200 ${clickedButtons[`${video.id}-more`] ? 'scale-125' : 'hover:scale-110 active:scale-95'}`}
+                    >
+                        <div className="p-2 bg-black/40 rounded-full">
+                        <MoreVertical className="w-7 h-7 text-white" />
+                        </div>
+                    </button>
+
+                    </div>
+
+                    <div className="absolute left-4 bottom-20 pr-20 pointer-events-auto">
+                    <h3 className="text-white font-bold text-lg mb-1 drop-shadow-md">{video.author}</h3>
+                    <p className="text-white text-sm mb-2 drop-shadow-md line-clamp-2">{video.title}</p>
+                    <div className="flex items-center gap-2 text-white/80 text-xs bg-black/30 w-max px-2 py-1 rounded-full backdrop-blur-sm">
+                        <Clapperboard className="w-3 h-3" />
+                        <span>{video.song}</span>
+                    </div>
+                    </div>
+                </div>
+                </div>
+            ))}
+            </div>
+        );
+        };
+
+        const HomeScreen = () => (
+        <div className="h-full w-full bg-gray-50 text-black flex flex-col">
+            <div className="flex justify-between items-center p-4 bg-white border-b sticky top-0 z-10">
+            <h1 className="text-xl font-bold">홈</h1>
+            <div className="flex gap-4">
+                <Bell className="w-6 h-6" />
+                <Search className="w-6 h-6" />
+            </div>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto pb-20 no-scrollbar">
+            <div className="flex gap-4 p-4 overflow-x-auto border-b bg-white no-scrollbar">
+                {STORIES.map((name, i) => (
+                <div key={i} className="flex flex-col items-center gap-1 min-w-[64px]">
+                    <div className={`w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold text-white
+                    ${i === 0 ? 'bg-gray-300' : 'bg-gradient-to-tr from-pink-500 to-orange-400 p-[2px]'}`}>
+                    {i !== 0 ? (
+                        <div className="w-full h-full bg-white rounded-full flex items-center justify-center text-black border-2 border-white">
+                        {name[0]}
+                        </div>
+                    ) : (
+                        <PlusSquare className="w-6 h-6 text-gray-600" />
+                    )}
+                    </div>
+                    <span className="text-xs">{name}</span>
+                </div>
+                ))}
+            </div>
+
+            <div className="flex flex-col gap-2 bg-gray-100">
+                {HOME_POSTS.map(post => (
+                <div key={post.id} className="bg-white p-4">
+                    <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center font-bold text-indigo-600">
+                        {post.avatar}
+                    </div>
+                    <div>
+                        <p className="font-bold text-sm">{post.author}</p>
+                        <p className="text-xs text-gray-500">{post.time}</p>
+                    </div>
+                    </div>
+                    <div className="w-full h-64 bg-gray-200 rounded-lg mb-3 flex items-center justify-center text-gray-400">
+                    [ 이미지 / 동영상 영역 ]
+                    </div>
+                    <p className="text-sm mb-3">{post.content}</p>
+                    <div className="flex gap-4 text-gray-600">
+                    <button className="flex items-center gap-1 text-sm font-medium"><Heart className="w-5 h-5"/> {post.likes}</button>
+                    <button className="flex items-center gap-1 text-sm font-medium"><MessageSquare className="w-5 h-5"/> 댓글</button>
+                    </div>
+                </div>
+                ))}
+            </div>
+            </div>
+        </div>
+        );
+
+        const DMScreen = () => {
+        const [activeChat, setActiveChat] = useState(null);
+
+        if (activeChat) {
+            return (
+            <div className="h-full w-full bg-white flex flex-col">
+                <div className="flex items-center gap-3 p-4 border-b">
+                <button onClick={() => setActiveChat(null)}><ChevronLeft className="w-6 h-6" /></button>
+                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center font-bold text-blue-600">
+                    {activeChat.name[0]}
+                </div>
+                <h2 className="font-bold">{activeChat.name}</h2>
+                </div>
+                <div className="flex-1 p-4 flex flex-col justify-end bg-gray-50">
+                <div className="bg-white p-3 rounded-2xl rounded-tl-none self-start shadow-sm mb-4 max-w-[70%]">
+                    {activeChat.lastMessage}
+                </div>
+                </div>
+                <div className="p-4 border-t flex gap-2 items-center bg-white pb-6">
+                <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center"><PlusSquare className="w-5 h-5 text-gray-600"/></div>
+                <input type="text" placeholder="메시지 입력..." className="flex-1 bg-gray-100 rounded-full px-4 py-2 outline-none text-sm" />
+                <button className="bg-blue-500 p-2 rounded-full text-white"><Send className="w-4 h-4" /></button>
+                </div>
+            </div>
+            );
+        }
+
+        return (
+            <div className="h-full w-full bg-white flex flex-col">
+            <div className="p-4 border-b flex justify-between items-center">
+                <h1 className="text-xl font-bold">메시지</h1>
+                <PlusSquare className="w-6 h-6" />
+            </div>
+            <div className="flex-1 overflow-y-auto no-scrollbar pb-20">
+                {DM_LIST.map(dm => (
+                <div key={dm.id} className="flex items-center gap-4 p-4 active:bg-gray-50 cursor-pointer" onClick={() => setActiveChat(dm)}>
+                    <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center font-bold text-blue-600 text-xl relative">
+                    {dm.name[0]}
+                    {dm.unread > 0 && (
+                        <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full border-2 border-white">
+                        {dm.unread}
+                        </div>
+                    )}
+                    </div>
+                    <div className="flex-1">
+                    <h3 className="font-bold">{dm.name}</h3>
+                    <p className="text-gray-500 text-sm truncate">{dm.lastMessage}</p>
+                    </div>
+                    <span className="text-xs text-gray-400">{dm.time}</span>
+                </div>
+                ))}
+            </div>
+            </div>
+        );
+        };
+
+        const CreateScreen = () => (
+        <div className="h-full w-full bg-black text-white flex flex-col items-center justify-center p-6 gap-6 relative">
+            <div className="absolute top-6 left-6 text-xl font-bold">만들기</div>
+            <p className="text-gray-400 mb-4 text-center">어떤 콘텐츠를<br/>만들어 볼까요?</p>
+            
+            <button className="w-full max-w-xs bg-gradient-to-r from-purple-500 to-pink-500 p-8 rounded-3xl flex flex-col items-center justify-center gap-4 hover:scale-105 transition-transform shadow-lg shadow-purple-500/30">
+            <div className="bg-white/20 p-4 rounded-full"><Clapperboard className="w-10 h-10" /></div>
+            <span className="font-bold text-xl">밈(Meme) 생성기</span>
+            <span className="text-xs text-white/70">템플릿으로 쉽고 빠르게 제작</span>
+            </button>
+            
+            <button className="w-full max-w-xs bg-gradient-to-r from-blue-500 to-cyan-500 p-8 rounded-3xl flex flex-col items-center justify-center gap-4 hover:scale-105 transition-transform shadow-lg shadow-blue-500/30">
+            <div className="bg-white/20 p-4 rounded-full"><Gamepad2 className="w-10 h-10" /></div>
+            <span className="font-bold text-xl">게임 만들기</span>
+            <span className="text-xs text-white/70">나만의 미니게임 숏폼 제작</span>
+            </button>
+        </div>
+        );
+
+        const SettingsScreen = () => (
+        <div className="h-full w-full bg-white flex flex-col">
+            <div className="p-4 border-b">
+            <h1 className="text-xl font-bold">설정 및 프로필</h1>
+            </div>
+            <div className="p-6 flex flex-col items-center border-b">
+            <UserCircle className="w-24 h-24 text-gray-300 mb-2" />
+            <h2 className="text-xl font-bold">사용자123</h2>
+            <p className="text-gray-500 text-sm">@user_12345</p>
+            </div>
+            <div className="flex-1 p-4 overflow-y-auto no-scrollbar pb-20">
+            {['계정 관리', '개인정보 보호', '알림 설정', '도움말', '로그아웃'].map((item, i) => (
+                <div key={i} className="py-4 border-b text-gray-800 font-medium cursor-pointer hover:bg-gray-50">
+                {item}
+                </div>
+            ))}
+            </div>
+        </div>
+        );
+
+        // --- [Main App Component] ---
+        function App() {
+        const [activeTab, setActiveTab] = useState(1); 
+        const [touchStart, setTouchStart] = useState(null);
+        const [showFeedUI, setShowFeedUI] = useState(false);
+
+        const toggleFeedUI = () => setShowFeedUI(!showFeedUI);
+
+        const handleTouchStart = (e) => {
+            setTouchStart({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+        };
+
+        const handleTouchEnd = (e) => {
+            if (!touchStart) return;
+            const dx = touchStart.x - e.changedTouches[0].clientX;
+            const dy = touchStart.y - e.changedTouches[0].clientY;
+
+            if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 60) {
+            if (dx > 0 && activeTab < 4) {
+                setActiveTab(prev => prev + 1);
+            } else if (dx < 0 && activeTab > 0) {
+                setActiveTab(prev => prev - 1);
+            }
+            }
+            setTouchStart(null);
+        };
+
+        const renderTabContent = () => {
+            switch (activeTab) {
+            case 0: return <HomeScreen />;
+            case 1: return <FeedScreen showUI={showFeedUI} toggleUI={toggleFeedUI} />;
+            case 2: return <CreateScreen />;
+            case 3: return <DMScreen />;
+            case 4: return <SettingsScreen />;
+            default: return <FeedScreen showUI={showFeedUI} toggleUI={toggleFeedUI} />;
+            }
+        };
+
+        const navBgClass = (activeTab === 1 || activeTab === 2) ? 'bg-black/70 backdrop-blur-md border-gray-800/50' : 'bg-white border-gray-200';
+        const navTextClass = (activeTab === 1 || activeTab === 2) ? 'text-gray-400' : 'text-gray-400';
+        const navActiveTextClass = (activeTab === 1 || activeTab === 2) ? 'text-white' : 'text-black';
+        const hideNavClass = (activeTab === 1 && !showFeedUI) ? 'translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100';
+
+        return (
+            <div className="w-full h-[100dvh] bg-black sm:p-4 flex justify-center items-center">
+                <div 
+                className="relative w-full max-w-md h-full sm:h-[850px] sm:rounded-[3rem] overflow-hidden bg-black shadow-2xl sm:border-[8px] border-gray-800"
+                onTouchStart={handleTouchStart}
+                onTouchEnd={handleTouchEnd}
+                >
+                <div className="w-full h-full">
+                    {renderTabContent()}
+                </div>
+
+                <div className={`absolute bottom-0 w-full pb-safe pt-2 h-[4.5rem] flex justify-around items-start border-t ${navBgClass} z-50 transition-all duration-300 ${hideNavClass}`}>
+                    <button onClick={() => setActiveTab(0)} className={`flex flex-col items-center px-4 py-1 ${activeTab === 0 ? navActiveTextClass : navTextClass}`}>
+                    <Home className="w-6 h-6" />
+                    <span className="text-[10px] mt-1 font-medium">홈</span>
+                    </button>
+                    
+                    <button onClick={() => setActiveTab(1)} className={`flex flex-col items-center px-4 py-1 ${activeTab === 1 ? navActiveTextClass : navTextClass}`}>
+                    <Clapperboard className="w-6 h-6" />
+                    <span className="text-[10px] mt-1 font-medium">피드</span>
+                    </button>
+                    
+                    <button onClick={() => setActiveTab(2)} className="flex flex-col items-center px-2 py-0 -mt-5 relative z-10">
+                    <div className={`p-3 rounded-2xl bg-gradient-to-tr from-cyan-400 to-blue-500 text-white shadow-lg`}>
+                        <PlusSquare className="w-6 h-6" />
+                    </div>
+                    <span className={`text-[10px] mt-1 font-medium ${activeTab === 2 ? navActiveTextClass : navTextClass}`}>만들기</span>
+                    </button>
+                    
+                    <button onClick={() => setActiveTab(3)} className={`flex flex-col items-center px-4 py-1 ${activeTab === 3 ? navActiveTextClass : navTextClass}`}>
+                    <MessageCircle className="w-6 h-6" />
+                    <span className="text-[10px] mt-1 font-medium">DM</span>
+                    </button>
+                    
+                    <button onClick={() => setActiveTab(4)} className={`flex flex-col items-center px-4 py-1 ${activeTab === 4 ? navActiveTextClass : navTextClass}`}>
+                    <Settings className="w-6 h-6" />
+                    <span className="text-[10px] mt-1 font-medium">설정</span>
+                    </button>
+                </div>
+                </div>
+            </div>
+        );
+        }
+
+        // --- 앱 렌더링 ---
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
